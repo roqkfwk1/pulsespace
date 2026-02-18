@@ -1,6 +1,7 @@
 package com.pulsespace.backend.service;
 
 import com.pulsespace.backend.domain.user.User;
+import com.pulsespace.backend.dto.response.AuthResponse;
 import com.pulsespace.backend.repository.UserRepository;
 import com.pulsespace.backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,7 @@ public class AuthService {
      * 회원가입
      */
     @Transactional
-    public User signup(String email, String password, String name) {
+    public void signup(String email, String password, String name) {
         // 이메일 중복 체크
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
@@ -34,13 +35,13 @@ public class AuthService {
                 .build();
 
         // 저장 및 반환
-        return userRepository.save(user);
+        userRepository.save(user);
     }
 
     /**
      * 로그인 - JWT 토큰 반환
      */
-    public String login(String email, String password) {
+    public AuthResponse login(String email, String password) {
         // 이메일로 사용자 찾기
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
@@ -50,7 +51,10 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        // JWT 토큰 생성 및 반환
-        return jwtTokenProvider.generateToken(user.getId());
+        // JWT 토큰 생성
+        String token = jwtTokenProvider.generateToken(user.getId());
+
+        // AuthResponse 생성 및 반환
+        return AuthResponse.of(token, user);
     }
 }
