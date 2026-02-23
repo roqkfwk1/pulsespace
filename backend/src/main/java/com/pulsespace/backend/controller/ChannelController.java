@@ -7,6 +7,7 @@ import com.pulsespace.backend.service.ChannelService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ public class ChannelController {
      * 채널 생성
      */
     @PostMapping
-    public ResponseEntity<ChannelResponse> createChannel(@RequestHeader("X-User-Id") Long userId, @Valid @RequestBody CreateChannelRequest request) {
+    public ResponseEntity<ChannelResponse> createChannel(@AuthenticationPrincipal Long userId, @Valid @RequestBody CreateChannelRequest request) {
         // 채널 생성
         Channel channel = channelService.createChannel(userId, request.getWorkspaceId(), request.getName(), request.getVisibility());
 
@@ -34,7 +35,7 @@ public class ChannelController {
      * 워크스페이스의 채널 목록 조회
       */
     @GetMapping("/workspaces/{workspaceId}/channels")
-    public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(@RequestHeader("X-User-Id") Long userId, @PathVariable Long workspaceId) {
+    public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(@AuthenticationPrincipal Long userId, @PathVariable Long workspaceId) {
         // 워크스페이스의 채널 목록 조회
         List<Channel> channels = channelService.getWorkspaceChannels(userId, workspaceId);
 

@@ -8,6 +8,7 @@ import com.pulsespace.backend.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,7 +24,7 @@ public class MessageController {
      * 메시지 전송
      */
     @PostMapping
-    public ResponseEntity<MessageResponse> sendMessage(@RequestHeader("X-User-Id") Long userId, @Valid @RequestBody SendMessageRequest request){
+    public ResponseEntity<MessageResponse> sendMessage(@AuthenticationPrincipal Long userId, @Valid @RequestBody SendMessageRequest request){
         // 메시지 전송
         Message message = messageService.sendMessage(userId, request.getChannelId(), request.getContent(), request.getReplyToId());
 
@@ -35,7 +36,7 @@ public class MessageController {
      * 채널의 최신 메시지 50개 조회
      */
     @GetMapping("/channels/{channelId}/messages")
-    public ResponseEntity<List<MessageResponse>> getChannelMessages(@RequestHeader("X-User-Id") Long userId, @PathVariable Long channelId) {
+    public ResponseEntity<List<MessageResponse>> getChannelMessages(@AuthenticationPrincipal Long userId, @PathVariable Long channelId) {
         // 채널의 메시지 목록 조회
         List<Message> messages = messageService.getChannelMessages(userId, channelId);
 
@@ -52,7 +53,7 @@ public class MessageController {
      * 읽음 처리
      */
     @PatchMapping("/channels/{channelId}/read")
-    public ResponseEntity<Void> markAsRead(@RequestHeader("X-User-Id") Long userId, @PathVariable Long channelId, @Valid @RequestBody MarkAsReadRequest request) {
+    public ResponseEntity<Void> markAsRead(@AuthenticationPrincipal Long userId, @PathVariable Long channelId, @Valid @RequestBody MarkAsReadRequest request) {
         // 메시지 읽음 처리
         messageService.markAsRead(userId, channelId, request.getMessageId());
 

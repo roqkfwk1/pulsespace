@@ -7,6 +7,7 @@ import com.pulsespace.backend.service.WorkspaceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ public class WorkspaceController {
      * 워크스페이스 생성
      */
     @PostMapping
-    public ResponseEntity<WorkspaceResponse> createWorkspace(@RequestHeader("X-User-Id") Long userId, @Valid @RequestBody CreateWorkspaceRequest request) {
+    public ResponseEntity<WorkspaceResponse> createWorkspace(@AuthenticationPrincipal Long userId, @Valid @RequestBody CreateWorkspaceRequest request) {
         // 워크스페이스 생성
         Workspace workspace = workspaceService.createWorkspace(userId, request.getName(), request.getDescription());
 
@@ -34,7 +35,7 @@ public class WorkspaceController {
      * 내 워크스페이스 목록 조회
      */
     @GetMapping
-    public ResponseEntity<List<WorkspaceResponse>> getMyWorkspaces(@RequestHeader("X-User-Id") Long userId) {
+    public ResponseEntity<List<WorkspaceResponse>> getMyWorkspaces(@AuthenticationPrincipal Long userId) {
         // 워크스페이스 목록 조회
         List<Workspace> workspaces = workspaceService.getMyWorkspaces(userId);
 
