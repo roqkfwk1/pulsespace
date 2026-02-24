@@ -2,7 +2,6 @@ package com.pulsespace.backend.controller;
 
 import com.pulsespace.backend.domain.message.Message;
 import com.pulsespace.backend.dto.request.MarkAsReadRequest;
-import com.pulsespace.backend.dto.request.SendMessageRequest;
 import com.pulsespace.backend.dto.response.MessageResponse;
 import com.pulsespace.backend.service.MessageService;
 import jakarta.validation.Valid;
@@ -19,18 +18,6 @@ import java.util.List;
 public class MessageController {
 
     private final MessageService messageService;
-
-    /**
-     * 메시지 전송
-     */
-    @PostMapping
-    public ResponseEntity<MessageResponse> sendMessage(@AuthenticationPrincipal Long userId, @Valid @RequestBody SendMessageRequest request){
-        // 메시지 전송
-        Message message = messageService.sendMessage(userId, request.getChannelId(), request.getContent(), request.getReplyToId());
-
-        // DTO 변환 및 반환
-        return ResponseEntity.ok(MessageResponse.of(message));
-    }
 
     /**
      * 채널의 최신 메시지 50개 조회
