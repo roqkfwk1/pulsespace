@@ -55,6 +55,7 @@ public class MessageService {
     /**
      * 채널의 최신 메시지 50개 조회
      */
+    @Transactional(readOnly = true)
     public List<Message> getChannelMessages(Long userId, Long channelId) {
         // 권한 체크
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
@@ -62,7 +63,7 @@ public class MessageService {
         }
 
         // 메시지 목록 조회 (최신 50개, 역순)
-        return messageRepository.findTop50ByChannelIdOrderByIdDesc(channelId);
+        return messageRepository.findTop50WithSenderByChannelId(channelId);
     }
 
     /**
