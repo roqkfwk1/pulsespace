@@ -22,6 +22,7 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showSynced, setShowSynced] = useState(false);
@@ -33,13 +34,27 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   // Load initial messages when channel changes
   useEffect(() => {
     if (!currentChannelId) return;
+    let cancelled = false;
+
     setMessages([]);
     setHasMore(true);
     setReplyingTo(null);
-    getMessages(currentChannelId).then((msgs) => {
-      setMessages(msgs);
-      setTimeout(() => scrollToBottom(), 50);
-    });
+    setLoadingInitial(true);
+
+    getMessages(currentChannelId, { limit: 50 })
+      .then((msgs) => {
+        if (cancelled) return;
+        setMessages(msgs);
+        setTimeout(() => scrollToBottom(), 50);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingInitial(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChannelId]);
 
@@ -68,7 +83,7 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
-    if (!container || loadingOlder || !hasMore || !currentChannelId) return;
+    if (!container || loadingInitial || loadingOlder || !hasMore || !currentChannelId) return;
     if (container.scrollTop < 100) {
       const firstMsg = messages[0];
       if (!firstMsg) return;
@@ -88,11 +103,12 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         },
       );
     }
-  }, [loadingOlder, hasMore, currentChannelId, messages, prependMessages]);
+  }, [loadingInitial, loadingOlder, hasMore, currentChannelId, messages, prependMessages]);
 
   function handleSend(content: string) {
-    onSend(content, replyingTo ?? undefined);
+    const reply = replyingTo;
     setReplyingTo(null);
+    onSend(content, reply ?? undefined);
   }
 
   if (!currentChannelId) {
@@ -183,6 +199,11 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto"
       >
+        {loadingInitial && (
+          <div className="flex-1 flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-accent" />
+          </div>
+        )}
         {loadingOlder && (
           <div className="text-center text-muted text-sm py-3">
             <Loader2 className="inline w-4 h-4 animate-spin mr-2" />

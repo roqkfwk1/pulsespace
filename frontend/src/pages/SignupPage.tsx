@@ -2,12 +2,13 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
-import { login } from '../api/auth';
+import { signup } from '../api/auth';
 import { useAuthStore } from '../stores/authStore';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -18,15 +19,15 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await login(email, password);
+      const { token, user } = await signup(email, password, name);
       setAuth(token, user);
       navigate('/workspaces');
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { message?: string } } };
-        setError(axiosErr.response?.data?.message || '로그인에 실패했습니다.');
+        setError(axiosErr.response?.data?.message || '회원가입에 실패했습니다.');
       } else {
-        setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
+        setError(err instanceof Error ? err.message : '회원가입에 실패했습니다.');
       }
     } finally {
       setLoading(false);
@@ -49,7 +50,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent mb-1">
             pulsespace
           </h1>
-          <p className="text-sm text-secondary">팀 협업을 위한 공간</p>
+          <p className="text-sm text-secondary">새 계정 만들기</p>
         </div>
 
         {/* Form */}
@@ -63,6 +64,18 @@ export default function LoginPage() {
               {error}
             </motion.div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1.5">이름</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="홍길동"
+              className="w-full px-3.5 py-2.5 bg-surface border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px]"
+            />
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-secondary mb-1.5">이메일</label>
@@ -93,16 +106,16 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-teal-600 hover:to-cyan-600 disabled:opacity-50 transition-all text-[15px] shadow-lg shadow-teal-500/20"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? '가입 중...' : '회원가입'}
           </button>
         </form>
 
-        {/* Signup link */}
+        {/* Login link */}
         <div className="mt-6 text-center">
           <p className="text-sm text-secondary">
-            계정이 없으신가요?{' '}
-            <Link to="/signup" className="text-accent hover:underline">
-              회원가입
+            이미 계정이 있으신가요?{' '}
+            <Link to="/" className="text-accent hover:underline">
+              로그인
             </Link>
           </p>
         </div>

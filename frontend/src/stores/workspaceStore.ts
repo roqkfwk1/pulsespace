@@ -14,7 +14,6 @@ interface WorkspaceState {
   setWorkspaces: (workspaces: Workspace[]) => void;
   setCurrentWorkspace: (workspace: Workspace) => void;
   setChannels: (channels: Channel[]) => void;
-  setCurrentChannelId: (id: number | null) => void;
   updateChannelUnread: (channelId: number, unreadCount: number) => void;
   updateChannelLatestMessage: (channelId: number, message: string, timestamp: string) => void;
 
@@ -36,7 +35,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setWorkspaces: (workspaces) => set({ workspaces }),
   setCurrentWorkspace: (workspace) => set({ currentWorkspace: workspace }),
   setChannels: (channels) => set({ channels }),
-  setCurrentChannelId: (id) => set({ currentChannelId: id }),
   updateChannelUnread: (channelId, unreadCount) =>
     set((state) => ({
       channels: state.channels.map((ch) =>

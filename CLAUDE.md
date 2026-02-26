@@ -30,6 +30,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 ### 라우팅 (App.tsx)
 - `/` → LoginPage
+- `/signup` → SignupPage
 - `/workspaces` → WorkspaceSelectPage
 - `/workspaces/:wsId` → MainLayout (첫 번째 채널 열림)
 - `/workspaces/:wsId/channels/:chId` → MainLayout (특정 채널)
@@ -83,10 +84,15 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 ### API 레이어 (`src/api/`)
 - 각 파일 (auth, workspace, channel, websocket)은 axios를 통한 실제 HTTP 호출로 구성
+- `authHeaders()` 유틸리티는 `auth.ts`에서 export — channel.ts, workspace.ts에서 공유 사용
 - 모든 요청에 JWT Bearer 토큰을 Authorization 헤더에 포함
 - Mock 모드는 제거됨 — `mock.ts` 파일 삭제 완료
 
 ### WebSocket / STOMP
+- SockJS 제거됨 — 프론트엔드/백엔드 양쪽 모두 native WebSocket으로 통일
+  - **프론트엔드**: `sockjs-client` 패키지 제거, `@stomp/stompjs`의 `brokerURL`로 native WebSocket 사용 (`VITE_WS_BASE_URL`)
+  - **백엔드**: `WebSocketConfig`에서 `.withSockJS()` 제거
+  - 제거 이유: SockJS는 연결 전 `/ws/info`로 HTTP pre-flight 요청을 보내는데, Spring Security 환경에서 이 경로가 403을 반환하여 연결 불가
 - `useWebSocket` 훅이 STOMP 연결 생명주기, 채널 구독, 자동 재연결 (최대 5회), 재연결 시 메시지 동기화 관리
 - `sendMessage()`로 websocket.ts를 통해 메시지 전송
 - 연결 배너: RECONNECTING (노란색), DISCONNECTED (빨간색), 동기화 완료 (초록색, 2초 후 자동 숨김)
@@ -126,7 +132,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ## 타입 (`src/types/index.ts`)
 
 - `User { id, email, name }`
-- `Workspace { id, name, ownerUserId, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon? }`
+- `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon? }`
 - `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon? }`
 - `Message { id, channelId, senderUserId, senderName, content, createdAt, replyToId?, replyToSenderName?, replyToContent? }`
 - `ChannelMember { id, channelId, userId, userName, role: 'OWNER'|'MEMBER', lastReadMessageId? }`
@@ -193,11 +199,14 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 | 메서드 | 엔드포인트 | 설명 |
 |---|---|---|
-| POST | `/api/auth/login` | 로그인, `{ token, user }` 반환 |
+| POST | `/api/auth/login` | 로그인, `{ token, userId, email, name }` 반환 |
+| POST | `/api/auth/signup` | 회원가입, 동일 형식 반환 |
 | GET | `/api/workspaces` | 사용자 워크스페이스 목록 |
-| GET | `/api/workspaces/:id/channels` | 워크스페이스 내 채널 목록 |
-| GET | `/api/channels/:id/messages` | 메시지 목록 (`beforeMessageId`, `afterMessageId`, `limit` 파라미터 지원) |
-| POST | `/api/channels/:id/read` | 채널 읽음 처리 |
-| GET | `/api/channels/:id/members` | 채널 멤버 목록 |
-| WS | `/ws` → STOMP `/topic/channels/:id` | 실시간 메시지 구독 |
-| WS | `/ws` → STOMP `/app/channels/:id/messages` | 메시지 전송 |
+| POST | `/api/workspaces` | 워크스페이스 생성 |
+| GET | `/api/channels/workspaces/:workspaceId/channels` | 워크스페이스 내 채널 목록 |
+| POST | `/api/channels` | 채널 생성 |
+| GET | `/api/messages/channels/:channelId/messages` | 메시지 목록 (`beforeMessageId`, `afterMessageId`, `limit` 파라미터 지원) |
+| PATCH | `/api/messages/channels/:channelId/read` | 읽음 처리 (body: `{ messageId }`) |
+| GET | `/api/channels/:channelId/members` | 채널 멤버 목록 |
+| WS | `/ws` → STOMP `/topic/channels/:channelId` | 실시간 메시지 구독 |
+| WS | `/ws` → STOMP `/app/messages` | 메시지 전송 (body: `{ channelId, content, replyToId }`) |

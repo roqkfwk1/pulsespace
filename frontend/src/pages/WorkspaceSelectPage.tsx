@@ -1,33 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Hash, Plus, Zap } from 'lucide-react';
-import { getWorkspaces } from '../api/workspace';
+import { Hash, Plus, Zap, Loader2 } from 'lucide-react';
+import { getWorkspaces, createWorkspace } from '../api/workspace';
 import { getChannels } from '../api/channel';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import type { Workspace, Channel } from '../types';
 import TopNavBar from '../components/TopNavBar';
+import Modal from '../components/Modal';
 
 export default function WorkspaceSelectPage() {
   const [workspaces, setLocalWs] = useState<Workspace[]>([]);
   const [channelMap, setChannelMap] = useState<Record<number, Channel[]>>({});
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const navigate = useNavigate();
   const { setCurrentWorkspace, setWorkspaces: setStoreWs } = useWorkspaceStore();
 
-  useEffect(() => {
-    getWorkspaces().then(async (ws) => {
-      setLocalWs(ws);
-      setStoreWs(ws);
+  // Refresh workspaces
+  async function refreshWorkspaces() {
+    const ws = await getWorkspaces();
+    setLocalWs(ws);
+    setStoreWs(ws);
 
-      const entries = await Promise.all(
-        ws.map(async (w) => {
-          const chs = await getChannels(w.id);
-          return [w.id, chs] as const;
-        })
-      );
-      setChannelMap(Object.fromEntries(entries));
-    }).finally(() => setLoading(false));
+    const entries = await Promise.all(
+      ws.map(async (w) => {
+        const chs = await getChannels(w.id);
+        return [w.id, chs] as const;
+      })
+    );
+    setChannelMap(Object.fromEntries(entries));
+  }
+
+  useEffect(() => {
+    refreshWorkspaces().finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -129,9 +135,9 @@ export default function WorkspaceSelectPage() {
                           {ws.name}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-muted">
-                          <span>{ws.channelCount ?? '–'}개 채널</span>
+                          <span>{ws.channelCount ?? 0}개 채널</span>
                           <span>·</span>
-                          <span>{ws.memberCount ?? '–'}명</span>
+                          <span>{ws.memberCount ?? 0}명</span>
                         </div>
                         {ws.description && (
                           <p className="text-xs text-secondary mt-1 truncate">{ws.description}</p>
@@ -170,10 +176,11 @@ export default function WorkspaceSelectPage() {
             })}
 
             {/* New workspace card */}
-            <motion.div
+            <motion.button
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: workspaces.length * 0.08 }}
+              onClick={() => setShowCreateModal(true)}
               className="bg-surface border-2 border-dashed border-line rounded-2xl p-5 hover:border-accent/50 hover:bg-elevated/50 flex flex-col items-center justify-center cursor-pointer transition-all min-h-[220px]"
             >
               <div className="w-12 h-12 rounded-xl bg-elevated flex items-center justify-center mb-3">
@@ -181,10 +188,115 @@ export default function WorkspaceSelectPage() {
               </div>
               <span className="text-base font-semibold text-primary">새 워크스페이스</span>
               <span className="text-xs text-muted mt-1">팀을 위한 새로운 공간</span>
-            </motion.div>
+            </motion.button>
           </div>
         )}
+
+        {/* Create Workspace Modal */}
+        <CreateWorkspaceModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            setShowCreateModal(false);
+            refreshWorkspaces();
+          }}
+        />
       </main>
     </div>
+  );
+}
+
+function CreateWorkspaceModal({
+  isOpen,
+  onClose,
+  onCreated,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setError('');
+    setLoading(true);
+    try {
+      await createWorkspace(name.trim(), description.trim() || undefined);
+      setName('');
+      setDescription('');
+      onCreated();
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        setError(axiosErr.response?.data?.message || '워크스페이스 생성에 실패했습니다.');
+      } else {
+        setError('워크스페이스 생성에 실패했습니다.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="새 워크스페이스 만들기">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 border border-danger/30 bg-danger/10 rounded-xl text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">
+            워크스페이스 이름 <span className="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="예: 개발팀"
+            className="w-full px-3.5 py-2.5 bg-base border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">
+            설명 <span className="text-muted">(선택)</span>
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="워크스페이스에 대한 간단한 설명"
+            rows={3}
+            className="w-full px-3.5 py-2.5 bg-base border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px] resize-none"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !name.trim()}
+            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium rounded-xl hover:from-teal-600 hover:to-cyan-600 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? '생성 중...' : '만들기'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

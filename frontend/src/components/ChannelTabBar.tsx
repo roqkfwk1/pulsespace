@@ -66,11 +66,14 @@ function TabItem({
       whileDrag={{ scale: 1.03, zIndex: 10 }}
       className="shrink-0"
     >
-      <motion.button
+      <motion.div
         onClick={onActivate}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onActivate(); }}
         className={`
           group relative flex items-center gap-1.5
-          px-3 py-1.5 rounded-t-lg min-w-0
+          px-3 py-1.5 rounded-t-lg min-w-0 cursor-pointer
           transition-colors duration-150
           ${isActive
             ? 'bg-surface text-primary'
@@ -117,7 +120,7 @@ function TabItem({
             <X className="w-3 h-3" />
           </button>
         )}
-      </motion.button>
+      </motion.div>
     </Reorder.Item>
   );
 }

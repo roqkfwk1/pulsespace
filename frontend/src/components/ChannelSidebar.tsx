@@ -1,14 +1,25 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { Hash, Lock, Search, ChevronRight, Sparkles, Plus } from 'lucide-react';
+import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2 } from 'lucide-react';
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
+import { createChannel, getChannels } from '../api/channel';
 import type { Channel } from '../types';
+import Modal from './Modal';
 
 export default function ChannelSidebar() {
   const { wsId } = useParams<{ wsId: string }>();
-  const { channels, openTabs, openTab } = useWorkspaceStore();
+  const { channels, openTabs, openTab, setChannels } = useWorkspaceStore();
   const [search, setSearch] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  async function handleChannelCreated() {
+    setShowCreateModal(false);
+    if (wsId) {
+      const updatedChannels = await getChannels(Number(wsId));
+      setChannels(updatedChannels);
+    }
+  }
 
   // "AI recommended" = channels sorted by unread + recency
   const frequentChannels = useMemo(() => {
@@ -40,6 +51,8 @@ export default function ChannelSidebar() {
       window.history.replaceState(null, '', `/workspaces/${wsId}/channels/${channel.id}`);
     }
   }
+
+  const workspaceId = wsId ? Number(wsId) : null;
 
   return (
     <aside className="w-60 bg-surface border-r border-line flex flex-col shrink-0 h-full">
@@ -82,19 +95,22 @@ export default function ChannelSidebar() {
         <Disclosure defaultOpen>
           {({ open }) => (
             <>
-              <DisclosureButton className="flex items-center gap-1.5 w-full px-4 py-1.5 hover:bg-elevated transition-colors">
-                <ChevronRight className={`w-3 h-3 text-muted transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
-                <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-                  채널
-                </span>
-                <span className="text-[10px] text-muted ml-auto mr-1">{allChannels.length}</span>
+              <div className="flex items-center w-full hover:bg-elevated transition-colors">
+                <DisclosureButton className="flex items-center gap-1.5 flex-1 px-4 py-1.5">
+                  <ChevronRight className={`w-3 h-3 text-muted transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+                  <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+                    채널
+                  </span>
+                  <span className="text-[10px] text-muted ml-auto">{allChannels.length}</span>
+                </DisclosureButton>
                 <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-0.5 rounded text-muted hover:text-primary hover:bg-elevated transition-colors"
+                  onClick={() => setShowCreateModal(true)}
+                  className="p-0.5 mr-3 rounded text-muted hover:text-primary transition-colors"
+                  title="채널 추가"
                 >
                   <Plus className="w-3 h-3" />
                 </button>
-              </DisclosureButton>
+              </div>
 
               <DisclosurePanel className="px-2 pb-2 space-y-0.5">
                 {allChannels.map((ch) => (
@@ -110,7 +126,154 @@ export default function ChannelSidebar() {
           )}
         </Disclosure>
       </div>
+
+      {/* Create Channel Modal */}
+      {workspaceId && (
+        <CreateChannelModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          workspaceId={workspaceId}
+          onCreated={handleChannelCreated}
+        />
+      )}
     </aside>
+  );
+}
+
+function CreateChannelModal({
+  isOpen,
+  onClose,
+  workspaceId,
+  onCreated,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  workspaceId: number;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setError('');
+    setLoading(true);
+    try {
+      await createChannel(workspaceId, name.trim(), visibility, description.trim() || undefined);
+      setName('');
+      setDescription('');
+      setVisibility('PUBLIC');
+      onCreated();
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        setError(axiosErr.response?.data?.message || '채널 생성에 실패했습니다.');
+      } else {
+        setError('채널 생성에 실패했습니다.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="새 채널 만들기">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 border border-danger/30 bg-danger/10 rounded-xl text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">
+            채널 이름 <span className="text-danger">*</span>
+          </label>
+          <div className="relative">
+            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="일반"
+              className="w-full pl-9 pr-3.5 py-2.5 bg-base border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px]"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">공개 설정</label>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setVisibility('PUBLIC')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-colors ${
+                visibility === 'PUBLIC'
+                  ? 'border-accent bg-accent-light text-accent'
+                  : 'border-line bg-base text-secondary hover:border-accent/50'
+              }`}
+            >
+              <Hash className="w-4 h-4" />
+              <span className="text-sm font-medium">공개</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibility('PRIVATE')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-colors ${
+                visibility === 'PRIVATE'
+                  ? 'border-accent bg-accent-light text-accent'
+                  : 'border-line bg-base text-secondary hover:border-accent/50'
+              }`}
+            >
+              <Lock className="w-4 h-4" />
+              <span className="text-sm font-medium">비공개</span>
+            </button>
+          </div>
+          <p className="text-xs text-muted mt-1.5">
+            {visibility === 'PUBLIC'
+              ? '모든 워크스페이스 멤버가 참여할 수 있습니다.'
+              : '초대된 멤버만 참여할 수 있습니다.'}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">
+            설명 <span className="text-muted">(선택)</span>
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="채널에 대한 간단한 설명"
+            rows={2}
+            className="w-full px-3.5 py-2.5 bg-base border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px] resize-none"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !name.trim()}
+            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium rounded-xl hover:from-teal-600 hover:to-cyan-600 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? '생성 중...' : '만들기'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

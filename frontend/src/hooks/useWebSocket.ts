@@ -12,8 +12,14 @@ export function useWebSocket() {
   const reconnectCountRef = useRef(0);
   const maxReconnect = 5;
 
-  const { addMessage, syncMessages, setConnectionStatus, lastReceivedMessageId } = useChatStore();
+  const { addMessage, syncMessages, setConnectionStatus } = useChatStore();
   const { currentChannelId, updateChannelLatestMessage } = useWorkspaceStore();
+
+  // Ref to always capture the latest currentChannelId inside async callbacks
+  const currentChannelIdRef = useRef(currentChannelId);
+  useEffect(() => {
+    currentChannelIdRef.current = currentChannelId;
+  }, [currentChannelId]);
 
   // Connect on mount
   useEffect(() => {
@@ -22,9 +28,25 @@ export function useWebSocket() {
 
       if (status === 'CONNECTED') {
         reconnectCountRef.current = 0;
+
+        // (Re)subscribe to the current channel immediately on connect/reconnect
+        const chId = currentChannelIdRef.current;
+        if (chId) {
+          unsubRef.current?.();
+          unsubRef.current = subscribeChannel(
+            chId,
+            (msg: Message) => {
+              addMessage(msg);
+              updateChannelLatestMessage(msg.channelId, msg.content, msg.createdAt);
+            },
+            client,
+          );
+        }
+
         // Sync missed messages on reconnect
-        if (currentChannelId && lastReceivedMessageId) {
-          getMessages(currentChannelId, { afterMessageId: lastReceivedMessageId, limit: 100 })
+        const { lastReceivedMessageId } = useChatStore.getState();
+        if (chId && lastReceivedMessageId) {
+          getMessages(chId, { afterMessageId: lastReceivedMessageId, limit: 100 })
             .then(syncMessages)
             .catch(() => {});
         }
@@ -37,6 +59,7 @@ export function useWebSocket() {
         }
       }
     });
+
     clientRef.current = client;
 
     return () => {
@@ -45,14 +68,14 @@ export function useWebSocket() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Subscribe to current channel
+  // When channel changes and STOMP is already connected, re-subscribe immediately
   useEffect(() => {
-    if (!currentChannelId) return;
+    if (!currentChannelId || !clientRef.current?.connected) return;
 
     unsubRef.current?.();
     unsubRef.current = subscribeChannel(
       currentChannelId,
-      (msg) => {
+      (msg: Message) => {
         addMessage(msg);
         updateChannelLatestMessage(msg.channelId, msg.content, msg.createdAt);
       },

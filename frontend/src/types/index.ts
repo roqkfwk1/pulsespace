@@ -7,7 +7,7 @@ export interface User {
 export interface Workspace {
   id: number;
   name: string;
-  ownerUserId: number;
+  ownerName?: string;
   createdAt: string;
   description?: string;
   memberCount?: number;

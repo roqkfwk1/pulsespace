@@ -8,17 +8,18 @@ export function useReadMessage(channelId: number | null) {
   const { messages } = useChatStore();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const markRead = useCallback(() => {
-    if (!channelId) return;
+    if (!channelId || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      readChannel(channelId).then(() => {
+      readChannel(channelId, lastMessage.id).then(() => {
         updateChannelUnread(channelId, 0);
       });
     }, 1000);
-  }, [channelId, updateChannelUnread]);
+  }, [channelId, messages, updateChannelUnread]);
 
   // Mark read on channel entry
   useEffect(() => {
@@ -31,7 +32,6 @@ export function useReadMessage(channelId: number | null) {
   // Intersection observer for bottom of message list
   const setBottomRef = useCallback(
     (node: HTMLDivElement | null) => {
-      bottomRef.current = node;
       observerRef.current?.disconnect();
 
       if (!node) return;
