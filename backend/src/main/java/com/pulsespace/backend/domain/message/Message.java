@@ -32,7 +32,6 @@ public class Message {
     @JoinColumn(name = "sender_user_id", nullable = false)
     private User sender;  //메시지 발신자 ID
 
-    @Lob
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content; //메시지 내용
 
