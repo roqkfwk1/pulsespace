@@ -52,6 +52,7 @@ public class WorkspaceService {
     /**
      * 나의 워크스페이스 조회
      */
+    @Transactional(readOnly = true)
     public List<Workspace> getMyWorkspaces(Long userId) {
         // userId로 WorkspaceMember 조회
         List<WorkspaceMember> members = workspaceMemberRepository.findByUserId(userId);
