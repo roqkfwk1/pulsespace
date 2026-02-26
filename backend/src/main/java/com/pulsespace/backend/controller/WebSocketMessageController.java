@@ -6,8 +6,9 @@ import com.pulsespace.backend.domain.message.Message;
 import com.pulsespace.backend.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 
 @Controller
@@ -23,10 +24,13 @@ public class WebSocketMessageController {
      * 구독자: /topic/channels/{channelId}로 수신
      */
     @MessageMapping("/messages")
-    public void sendMessage(@AuthenticationPrincipal Long userId, SendMessageRequest request) {
+    public void sendMessage(@Payload SendMessageRequest request, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+
         // 메시지 저장
         Message message = messageService.sendMessage(
                 userId,
+
                 request.getChannelId(),
                 request.getContent(),
                 request.getReplyToId()
