@@ -13,7 +13,8 @@ import java.util.Optional;
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, Long> {
 
     // 워크스페이스의 모든 멤버 조회
-    List<WorkspaceMember> findByWorkspaceId(Long workspaceId);
+    @Query("select m from WorkspaceMember m join fetch m.user where m.workspace.id = :workspaceId")
+    List<WorkspaceMember> findByWorkspaceId(@Param("workspaceId") Long workspaceId);
 
     // 사용자의 모든 멤버십 조회 (가입한 워크스페이스들)
     @Query("select m from WorkspaceMember m join fetch m.workspace w join fetch w.owner where m.user.id = :userId")
