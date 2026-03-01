@@ -1,7 +1,10 @@
 package com.pulsespace.backend.controller;
 
 import com.pulsespace.backend.domain.workspace.Workspace;
+import com.pulsespace.backend.domain.workspace.WorkspaceMember;
+import com.pulsespace.backend.dto.request.AddMemberRequest;
 import com.pulsespace.backend.dto.request.CreateWorkspaceRequest;
+import com.pulsespace.backend.dto.response.WorkspaceMemberResponse;
 import com.pulsespace.backend.dto.response.WorkspaceResponse;
 import com.pulsespace.backend.service.WorkspaceService;
 import jakarta.validation.Valid;
@@ -42,6 +45,43 @@ public class WorkspaceController {
         // DTO 변환
         List<WorkspaceResponse> response = workspaces.stream()
                 .map(WorkspaceResponse::of)
+                .toList();
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 워크스페이스 멤버 초대
+     */
+    @PostMapping("/{workspaceId}/members")
+    public ResponseEntity<Void> addMember(@PathVariable Long workspaceId, @Valid @RequestBody AddMemberRequest request, @AuthenticationPrincipal Long requesterId) {
+        // 워크스페이스 멤버 추가
+        workspaceService.addMember(request.getEmail(), workspaceId, requesterId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 나의 워크스페이스 권한 조회
+     */
+    @GetMapping("/{workspaceId}/my-role")
+    public ResponseEntity<String> getMyRole(@PathVariable Long workspaceId, @AuthenticationPrincipal Long userId) {
+        // 워크스페이스 멤버 조회
+        WorkspaceMember member = workspaceService.getMyRole(workspaceId, userId);
+        return ResponseEntity.ok(member.getRole().name());
+    }
+
+    /**
+     * 워크스페이스 멤버 조회
+     */
+    @GetMapping("/{workspaceId}/members")
+    public ResponseEntity<List<WorkspaceMemberResponse>> getWorkspaceMembers(@PathVariable Long workspaceId) {
+        // 워크스페이스 멤버 조회
+        List<WorkspaceMember> members = workspaceService.getWorkspaceMembers(workspaceId);
+
+        // DTO 변환
+        List<WorkspaceMemberResponse> response = members.stream()
+                .map(WorkspaceMemberResponse::of)
                 .toList();
 
         return ResponseEntity.ok(response);
