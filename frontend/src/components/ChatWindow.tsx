@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useState, useCallback, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, X } from 'lucide-react';
+import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, X, UserPlus, Lock } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useReadMessage } from '../hooks/useReadMessage';
-import { getMessages } from '../api/channel';
-import { formatTime } from '../utils/format';
+import { getMessages, inviteChannelMember, getChannelMyRole } from '../api/channel';
+import { formatTime, formatDate, getKSTDateStr, isToday, minutesDiff } from '../utils/format';
 import MessageInput from './MessageInput';
+import Modal from './Modal';
 import type { Message } from '../types';
 
 interface Props {
@@ -28,8 +29,17 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   const [showSynced, setShowSynced] = useState(false);
   const prevStatusRef = useRef(connectionStatus);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [showChInvite, setShowChInvite] = useState(false);
+  const [notMember, setNotMember] = useState(false);
+  const [channelRole, setChannelRole] = useState<'OWNER' | 'MEMBER' | null>(null);
 
   const { setBottomRef } = useReadMessage(currentChannelId);
+
+  // 렌더마다 인라인 함수가 재생성되면 IntersectionObserver가 매번 재연결됨 → useCallback으로 안정화
+  const endRefCallback = useCallback((el: HTMLDivElement | null) => {
+    messagesEndRef.current = el;
+    setBottomRef(el);
+  }, [setBottomRef]);
 
   // Load initial messages when channel changes
   useEffect(() => {
@@ -39,7 +49,13 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     setMessages([]);
     setHasMore(true);
     setReplyingTo(null);
+    setNotMember(false);
+    setChannelRole(null);
     setLoadingInitial(true);
+
+    getChannelMyRole(currentChannelId).then((role) => {
+      if (!cancelled) setChannelRole(role);
+    });
 
     getMessages(currentChannelId, { limit: 50 })
       .then((msgs) => {
@@ -47,7 +63,13 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         setMessages(msgs);
         setTimeout(() => scrollToBottom(), 50);
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const status = (err as { response?: { status?: number } }).response?.status;
+        if (status === 400 || status === 403) {
+          setNotMember(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) setLoadingInitial(false);
       });
@@ -111,19 +133,7 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     onSend(content, reply ?? undefined);
   }
 
-  if (!currentChannelId) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-base">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-accent-light flex items-center justify-center">
-            <Hash className="w-8 h-8 text-accent" />
-          </div>
-          <p className="text-primary font-semibold text-lg">채널을 선택하세요</p>
-          <p className="text-sm text-muted mt-1">좌측에서 채널을 선택하거나 탭을 열어 대화를 시작하세요</p>
-        </div>
-      </div>
-    );
-  }
+  const canInvite = channelRole === 'OWNER';
 
   return (
     <div className="flex-1 flex flex-col bg-base min-w-0">
@@ -147,14 +157,25 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
             )}
           </div>
         </div>
-        <button
-          onClick={onToggleMembers}
-          className={`p-1.5 rounded-lg transition-colors ${
-            showMembers ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {canInvite && (
+            <button
+              onClick={() => setShowChInvite(true)}
+              className="p-1.5 text-secondary hover:text-accent hover:bg-accent-light rounded-lg transition-colors"
+              title="채널에 멤버 초대"
+            >
+              <UserPlus className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onToggleMembers}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showMembers ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       {/* Connection banners */}
@@ -199,6 +220,18 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto"
       >
+        {notMember ? (
+          <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-elevated flex items-center justify-center">
+              <Lock className="w-7 h-7 text-muted" />
+            </div>
+            <div className="text-center">
+              <p className="text-primary font-semibold">채널 멤버가 아닙니다</p>
+              <p className="text-sm text-muted mt-1">이 채널에 참여하려면 초대를 받아야 합니다</p>
+            </div>
+          </div>
+        ) : (
+          <>
         {loadingInitial && (
           <div className="flex-1 flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-accent" />
@@ -212,23 +245,43 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         )}
 
         {messages.map((msg, i) => {
-          const showSender = i === 0 || messages[i - 1].senderUserId !== msg.senderUserId;
+          const prev = i > 0 ? messages[i - 1] : null;
+          const senderChanged = !prev
+            || prev.senderUserId !== msg.senderUserId
+            || prev.senderName !== msg.senderName;
+          const showSender = senderChanged
+            || (!!prev && minutesDiff(prev.createdAt, msg.createdAt) >= 5);
+          const showDateSeparator =
+            (i === 0 && !isToday(msg.createdAt)) ||
+            (prev !== null && getKSTDateStr(msg.createdAt) !== getKSTDateStr(prev.createdAt));
+
           return (
-            <div
-              key={msg.id}
-              className={`group relative hover:bg-elevated/40 transition-colors ${
-                showSender ? 'pt-3' : 'pt-0.5'
-              }`}
-            >
+            <Fragment key={msg.id}>
+              {showDateSeparator && (
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 h-px bg-line" />
+                  <span className="text-xs text-muted">{formatDate(msg.createdAt)}</span>
+                  <div className="flex-1 h-px bg-line" />
+                </div>
+              )}
+              <div
+                className={`group relative hover:bg-elevated/40 transition-colors ${
+                  showSender ? 'pt-3' : 'pt-0.5'
+                }`}
+              >
               <div className="flex items-start gap-3 px-4">
-                {/* Avatar or spacer */}
+                {/* Avatar or hover timestamp */}
                 <div className="w-9 shrink-0">
-                  {showSender && (
+                  {showSender ? (
                     <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
                       <span className="text-sm font-semibold text-white">
                         {msg.senderName.charAt(0)}
                       </span>
                     </div>
+                  ) : (
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted block text-right pt-1">
+                      {formatTime(msg.createdAt)}
+                    </span>
                   )}
                 </div>
 
@@ -301,14 +354,17 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
                 )}
               </AnimatePresence>
             </div>
+            </Fragment>
           );
         })}
 
-        <div ref={(el) => { messagesEndRef.current = el; setBottomRef(el); }} />
+        <div ref={endRefCallback} />
+          </>
+        )}
       </div>
 
       {/* Reply indicator in main input */}
-      {replyingTo && (
+      {!notMember && replyingTo && (
         <div className="px-4 pt-2 flex items-center gap-2 text-xs text-muted bg-base border-t border-line">
           <CornerDownRight className="w-3.5 h-3.5 text-accent shrink-0" />
           <span className="truncate">
@@ -325,8 +381,102 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
       )}
 
       {/* Input */}
-      <MessageInput onSend={handleSend} channelName={currentChannel?.name} />
+      {!notMember && <MessageInput onSend={handleSend} channelName={currentChannel?.name} />}
+
+      {/* Channel Invite Modal */}
+      <InviteChannelMemberModal
+        isOpen={showChInvite}
+        onClose={() => setShowChInvite(false)}
+        channelId={currentChannelId}
+        channelName={currentChannel?.name}
+      />
     </div>
+  );
+}
+
+function InviteChannelMemberModal({
+  isOpen,
+  onClose,
+  channelId,
+  channelName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  channelId: number | null;
+  channelName?: string;
+}) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!channelId || !email.trim()) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await inviteChannelMember(channelId, email.trim());
+      setSuccess('멤버를 초대했습니다');
+      setEmail('');
+      setTimeout(() => {
+        setSuccess('');
+        onClose();
+      }, 1200);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message ?? '초대에 실패했습니다');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`#${channelName ?? '채널'}에 멤버 초대`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 border border-danger/30 bg-danger/10 rounded-xl text-danger text-sm">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="p-3 border border-success/30 bg-success/10 rounded-xl text-success text-sm">
+            {success}
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-secondary mb-1.5">
+            이메일 주소 <span className="text-danger">*</span>
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(''); }}
+            required
+            placeholder="user@example.com"
+            className="w-full px-3.5 py-2.5 bg-base border border-line rounded-xl text-primary placeholder:text-muted focus:border-accent focus:outline-none transition-colors text-[15px]"
+          />
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !email.trim()}
+            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium rounded-xl hover:from-teal-600 hover:to-cyan-600 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? '초대 중...' : '초대'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

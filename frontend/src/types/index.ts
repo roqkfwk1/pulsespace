@@ -42,13 +42,10 @@ export interface Message {
   replyToContent?: string;
 }
 
-export interface ChannelMember {
-  id: number;
-  channelId: number;
-  userId: number;
-  userName: string;
-  role: 'OWNER' | 'MEMBER';
-  lastReadMessageId?: number;
+export interface WorkspaceMember {
+  name: string;
+  email: string;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
 }
 
 export type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING';

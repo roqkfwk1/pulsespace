@@ -5,40 +5,45 @@ import { useChatStore } from '../stores/chatStore';
 
 export function useReadMessage(channelId: number | null) {
   const { updateChannelUnread } = useWorkspaceStore();
-  const { messages } = useChatStore();
+  const lastReadIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const markRead = useCallback(() => {
-    if (!channelId || messages.length === 0) return;
+    if (!channelId) return;
+    const messages = useChatStore.getState().messages;
+    if (messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];
-    if (!lastMessage) return;
+    if (!lastMessage || lastMessage.id === lastReadIdRef.current) return;
+
+    // 낙관적 업데이트: 타이머 실행 전에 기록하여 동일 메시지로 재진입 방지
+    lastReadIdRef.current = lastMessage.id;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       readChannel(channelId, lastMessage.id).then(() => {
         updateChannelUnread(channelId, 0);
       });
     }, 1000);
-  }, [channelId, messages, updateChannelUnread]);
+  }, [channelId, updateChannelUnread]);
 
-  // Mark read on channel entry
+  // 채널 진입 시 1회 호출
   useEffect(() => {
+    lastReadIdRef.current = null;
     markRead();
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [channelId, markRead]);
 
-  // Intersection observer for bottom of message list
+  // 스크롤 하단 IntersectionObserver — setBottomRef 안정적으로 유지
   const setBottomRef = useCallback(
     (node: HTMLDivElement | null) => {
       observerRef.current?.disconnect();
-
       if (!node) return;
 
       observerRef.current = new IntersectionObserver(
         (entries) => {
-          if (entries[0]?.isIntersecting && messages.length > 0) {
+          if (entries[0]?.isIntersecting) {
             markRead();
           }
         },
@@ -46,7 +51,7 @@ export function useReadMessage(channelId: number | null) {
       );
       observerRef.current.observe(node);
     },
-    [markRead, messages.length],
+    [markRead],
   );
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { authHeaders } from './auth';
-import type { Channel, Message, ChannelMember } from '../types';
+import type { Channel, Message } from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -37,7 +37,8 @@ export async function getMessages(
       limit: opts?.limit,
     },
   });
-  return res.data;
+  // 백엔드가 내림차순으로 반환하는 경우 오름차순(오래된 → 최신)으로 정렬
+  return (res.data as Message[]).sort((a, b) => a.id - b.id);
 }
 
 export async function readChannel(channelId: number, messageId: number): Promise<void> {
@@ -48,7 +49,22 @@ export async function readChannel(channelId: number, messageId: number): Promise
   );
 }
 
-export async function getMembers(channelId: number): Promise<ChannelMember[]> {
-  const res = await axios.get(`${BASE}/api/channels/${channelId}/members`, { headers: authHeaders() });
-  return res.data;
+export async function inviteChannelMember(channelId: number, email: string): Promise<void> {
+  await axios.post(
+    `${BASE}/api/channels/${channelId}/members`,
+    { email },
+    { headers: authHeaders() }
+  );
+}
+
+/** 403이면 null 반환 (채널 멤버가 아님) */
+export async function getChannelMyRole(channelId: number): Promise<'OWNER' | 'MEMBER' | null> {
+  try {
+    const res = await axios.get(`${BASE}/api/channels/${channelId}/my-role`, {
+      headers: authHeaders(),
+    });
+    return res.data.role ?? res.data;
+  } catch {
+    return null;
+  }
 }

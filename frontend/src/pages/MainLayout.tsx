@@ -10,6 +10,7 @@ import ChannelTabBar from '../components/ChannelTabBar';
 import ChannelSidebar from '../components/ChannelSidebar';
 import ChatWindow from '../components/ChatWindow';
 import MemberPanel from '../components/MemberPanel';
+import WorkspaceHome from '../components/WorkspaceHome';
 import { Menu as MenuIcon } from 'lucide-react';
 
 export default function MainLayout() {
@@ -20,13 +21,21 @@ export default function MainLayout() {
     setWorkspaces,
     currentWorkspace,
     channels,
+    currentChannelId,
     openTab,
     openTabs,
+    clearTabs,
   } = useWorkspaceStore();
   const { send } = useWebSocket();
   const [showMembers, setShowMembers] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarFocused, setSidebarFocused] = useState(false);
+
+  // 워크스페이스 전환 시 이전 탭 초기화
+  useEffect(() => {
+    clearTabs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId]);
 
   // Set workspace + workspace list
   useEffect(() => {
@@ -49,15 +58,11 @@ export default function MainLayout() {
     });
   }, [wsId, setChannels]);
 
-  // Open initial tab from URL param or first channel
+  // Open initial tab from URL param only (no auto-open first channel)
   useEffect(() => {
-    if (channels.length === 0 || openTabs.length > 0) return;
-    if (chId) {
-      const ch = channels.find((c) => c.id === Number(chId));
-      if (ch) openTab(ch);
-    } else {
-      openTab(channels[0]);
-    }
+    if (channels.length === 0 || openTabs.length > 0 || !chId) return;
+    const ch = channels.find((c) => c.id === Number(chId));
+    if (ch) openTab(ch);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels, chId]);
 
@@ -103,12 +108,16 @@ export default function MainLayout() {
           <ChannelSidebar />
         </div>
 
-        {/* Chat */}
-        <ChatWindow
-          onSend={send}
-          onToggleMembers={() => setShowMembers((v) => !v)}
-          showMembers={showMembers}
-        />
+        {/* Chat or Home */}
+        {currentChannelId ? (
+          <ChatWindow
+            onSend={send}
+            onToggleMembers={() => setShowMembers((v) => !v)}
+            showMembers={showMembers}
+          />
+        ) : (
+          <WorkspaceHome />
+        )}
 
         {/* Members panel */}
         <AnimatePresence>

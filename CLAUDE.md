@@ -32,7 +32,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `/` → LoginPage
 - `/signup` → SignupPage
 - `/workspaces` → WorkspaceSelectPage
-- `/workspaces/:wsId` → MainLayout (첫 번째 채널 열림)
+- `/workspaces/:wsId` → MainLayout (채널 미선택 → WorkspaceHome 표시)
 - `/workspaces/:wsId/channels/:chId` → MainLayout (특정 채널)
 - `*` → `/`로 리다이렉트
 - `ProtectedRoute` 래퍼가 `authStore.token`을 확인하고, 없으면 `/`로 리다이렉트
@@ -45,21 +45,30 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 │ ChannelTabBar (h-10, 드래그 재정렬)               │
 ├──────────┬────────────────────────┬─────────────┤
 │ Channel  │ ChatWindow (flex-1)    │ MemberPanel │
-│ Sidebar  │  ┌─header──────────┐  │ (w-72,      │
-│ (w-60)   │  │messages (scroll)│  │  애니메이션   │
-│          │  │reply indicator  │  │  토글)       │
-│          │  │MessageInput     │  │             │
-│          │  └─────────────────┘  │             │
+│ Sidebar  │  또는 WorkspaceHome    │ (w-72,      │
+│ (w-60)   │  (채널 미선택 시)      │  애니메이션   │
+│          │                        │  토글)       │
 └──────────┴────────────────────────┴─────────────┘
 ```
 
 - **TopNavBar** — 워크스페이스 드롭다운 전환기 (Headless UI Menu), 검색 플레이스홀더 (`⌘K`), 알림 벨 + 펄스 배지, 다크/라이트 토글, 프로필 메뉴 + 로그아웃
 - **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, 닫기 버튼, "+" 탭 추가 버튼
-- **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지
-- **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장, 이모지, 더보기), 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput
-- **MemberPanel** — 멤버 목록 + 그라디언트 아바타, 온라인 표시, 역할 라벨 (관리자/멤버), AnimatePresence 애니메이션 토글
+- **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지, 워크스페이스 초대 버튼 (OWNER/ADMIN만 표시)
+- **WorkspaceHome** — 채널 미선택 시 표시되는 홈 화면. 워크스페이스 이름·설명·멤버 수·채널 수 표시. 멤버 수는 `/api/workspaces/{id}/members` 실시간 조회. 초대 버튼은 OWNER/ADMIN만 표시
+- **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장, 이모지, 더보기), 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
+- **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨 (소유자/관리자/멤버), AnimatePresence 애니메이션 토글
+- **InviteWorkspaceMemberModal** — 워크스페이스 멤버 초대 공유 모달 (WorkspaceHome · ChannelSidebar에서 사용)
+
+### 권한 체크
+- **워크스페이스 초대**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 초대 버튼 표시 (WorkspaceHome, ChannelSidebar)
+- **채널 초대**: `GET /api/channels/{channelId}/my-role` → OWNER이면 초대 버튼 표시. 403(비멤버)이면 버튼 숨김 (ChatWindow)
 
 ### 주요 기능
+
+#### 워크스페이스 홈 화면
+- `/workspaces/:wsId` 접속 시 채널 자동 선택 없이 홈 화면 표시
+- 워크스페이스 전환 시 기존 탭 전체 초기화 (`clearTabs()`)
+- `clearTabs()`는 MainLayout에서 `wsId` 변경을 감지해 호출 (WorkspaceSelectPage, TopNavBar 전환 모두 처리)
 
 #### 탭 기반 멀티채널
 - 브라우저 탭처럼 여러 채널을 동시에 열기
@@ -100,7 +109,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ### 주요 데이터 흐름
 1. **채널 선택**: 사이드바 클릭 → `openTab(channel)` → REST로 메시지 로드 → STOMP 구독 → `lastReceivedMessageId` 추적
 2. **재연결 동기화**: 연결 끊김 감지 → 배너 표시 → 재연결 시 `lastReceivedMessageId` 이후 메시지 조회 → `syncMessages()`로 ID 기반 중복 제거 → "동기화 완료" 배너 표시
-3. **읽음 추적**: `useReadMessage` 훅이 채널 진입 시와 스크롤 하단 IntersectionObserver (디바운스 1초)로 읽음 처리
+3. **읽음 추적**: `useReadMessage` 훅이 채널 진입 시 1회 + 스크롤 하단 IntersectionObserver (디바운스 1초)로 읽음 처리. `lastReadIdRef`를 낙관적 업데이트하여 1초 이내 재진입 차단
 4. **무한 스크롤**: scrollTop < 100px → `getMessages(channelId, { beforeMessageId })` → `prependMessages()` → 스크롤 위치 복원
 
 ## 스토어 (Zustand)
@@ -116,12 +125,13 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `closeTab(channelId)` — 탭 제거, 인접 탭으로 자동 전환
 - `setActiveTab(channelId)` — 활성 탭 + currentChannelId 전환
 - `reorderTabs(tabs)` — 드래그 재정렬
+- `clearTabs()` — 탭 전체 초기화 (워크스페이스 전환 시 호출)
 - `updateChannelUnread(channelId, count)`, `updateChannelLatestMessage(channelId, msg, timestamp)`
 
 ### chatStore
 - `messages: Message[]`, `lastReceivedMessageId`, `connectionStatus`
 - `addMessage(msg)` — ID 기반 중복 제거
-- `setMessages(msgs)` — 전체 교체 (채널 전환)
+- `setMessages(msgs)` — 전체 교체 (채널 전환), `lastReceivedMessageId`도 함께 리셋
 - `syncMessages(msgs)` — 병합 + 중복 제거 + 정렬 (재연결)
 - `prependMessages(older)` — 무한 스크롤
 
@@ -135,7 +145,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon? }`
 - `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon? }`
 - `Message { id, channelId, senderUserId, senderName, content, createdAt, replyToId?, replyToSenderName?, replyToContent? }`
-- `ChannelMember { id, channelId, userId, userName, role: 'OWNER'|'MEMBER', lastReadMessageId? }`
+- `WorkspaceMember { name, email, role: 'OWNER'|'ADMIN'|'MEMBER' }`
 - `OpenTab { channelId, channelName, color, icon }`
 - `ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'`
 
@@ -193,7 +203,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 경로 별칭: `@/`는 `src/`에 매핑 (일부 import에서 사용)
 - 한국어 UI 텍스트 (메시지, 채널, 답장, 전송 등)
 - 메시지는 ChatWindow.tsx에서 인라인으로 렌더링 (별도 MessageItem 컴포넌트 없음)
-- 유틸리티는 `src/utils/format.ts`: `formatTime()` (오후 2:30), `relativeTime()` (3분 전), `truncate()`
+- 유틸리티는 `src/utils/format.ts`: `formatTime()` (오후 2:30)
 
 ## API 엔드포인트 (백엔드 연동 필요)
 
@@ -203,10 +213,14 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 | POST | `/api/auth/signup` | 회원가입, 동일 형식 반환 |
 | GET | `/api/workspaces` | 사용자 워크스페이스 목록 |
 | POST | `/api/workspaces` | 워크스페이스 생성 |
+| GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ name, email, role }]` 반환 |
+| POST | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 초대 |
+| GET | `/api/workspaces/{workspaceId}/my-role` | 내 워크스페이스 역할 조회, `{ role: 'OWNER'|'ADMIN'|'MEMBER' }` 반환 |
 | GET | `/api/channels/workspaces/:workspaceId/channels` | 워크스페이스 내 채널 목록 |
 | POST | `/api/channels` | 채널 생성 |
+| POST | `/api/channels/{channelId}/members` | 채널 멤버 초대 |
+| GET | `/api/channels/{channelId}/my-role` | 내 채널 역할 조회, `{ role: 'OWNER'|'MEMBER' }` 반환. 비멤버는 403 |
 | GET | `/api/messages/channels/:channelId/messages` | 메시지 목록 (`beforeMessageId`, `afterMessageId`, `limit` 파라미터 지원) |
 | PATCH | `/api/messages/channels/:channelId/read` | 읽음 처리 (body: `{ messageId }`) |
-| GET | `/api/channels/:channelId/members` | 채널 멤버 목록 |
 | WS | `/ws` → STOMP `/topic/channels/:channelId` | 실시간 메시지 구독 |
 | WS | `/ws` → STOMP `/app/messages` | 메시지 전송 (body: `{ channelId, content, replyToId }`) |
