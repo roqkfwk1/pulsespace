@@ -55,7 +55,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, 닫기 버튼, "+" 탭 추가 버튼
 - **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지, 워크스페이스 초대 버튼 (OWNER/ADMIN만 표시)
 - **WorkspaceHome** — 채널 미선택 시 표시되는 홈 화면. 워크스페이스 이름·설명·멤버 수·채널 수 표시. 멤버 수는 `/api/workspaces/{id}/members` 실시간 조회. 초대 버튼은 OWNER/ADMIN만 표시
-- **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장, 이모지, 더보기), 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
+- **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장·이모지 / 본인 메시지는 `...` 드롭다운으로 수정·삭제), 인라인 메시지 편집, 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
 - **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨 (소유자/관리자/멤버), AnimatePresence 애니메이션 토글
 - **InviteWorkspaceMemberModal** — 워크스페이스 멤버 초대 공유 모달 (WorkspaceHome · ChannelSidebar에서 사용)
 
@@ -79,7 +79,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 탭 상태는 `workspaceStore`에서 관리 (openTabs, activeTabChannelId)
 
 #### 인라인 답장
-- 메시지 호버 시 답장/이모지/더보기 액션 버튼 표시
+- 메시지 호버 시 답장/이모지 액션 버튼 표시 (본인 메시지는 `...` 드롭다운 추가)
 - 답장 클릭 → `InlineReplyInput`이 메시지 아래에 확장 (AnimatePresence)
 - Enter로 전송, Esc로 취소
 - 답장 참조는 `CornerDownRight` 아이콘 + 보낸 사람 이름 + 미리보기로 표시
@@ -90,6 +90,12 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 틸 색상 전송 버튼 (비어있으면 비활성)
 - 도구 버튼: 파일 첨부, 이모지, 멘션 (플레이스홀더)
 - 키보드 힌트: `Enter` 전송, `Shift+Enter` 줄바꿈
+
+#### 메시지 수정/삭제
+- 본인 메시지(`msg.senderId === currentUserId`)에만 호버 시 `...` 버튼 → 수정/삭제 드롭다운
+- **수정**: 인라인 textarea 전환, `Enter` 저장 / `Esc` 취소. 성공 시 로컬 상태 즉시 반영 + `(수정됨)` 인라인 표시
+- **삭제**: 확인 모달 → 소프트 삭제. "이 메시지는 삭제되었습니다." italic 표시, 삭제 메시지의 호버 액션 숨김
+- WebSocket `UPDATED`/`DELETED` 이벤트로 다른 클라이언트에도 실시간 반영
 
 ### API 레이어 (`src/api/`)
 - 각 파일 (auth, workspace, channel, websocket)은 axios를 통한 실제 HTTP 호출로 구성
@@ -104,6 +110,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
   - 제거 이유: SockJS는 연결 전 `/ws/info`로 HTTP pre-flight 요청을 보내는데, Spring Security 환경에서 이 경로가 403을 반환하여 연결 불가
 - `useWebSocket` 훅이 STOMP 연결 생명주기, 채널 구독, 자동 재연결 (최대 5회), 재연결 시 메시지 동기화 관리
 - `sendMessage()`로 websocket.ts를 통해 메시지 전송
+- 수신 메시지의 `type` 필드로 분기: `CREATED` → `addMessage`, `UPDATED` → `updateMessage`, `DELETED` → `updateMessage({ isDeleted: true })`
 - 연결 배너: RECONNECTING (노란색), DISCONNECTED (빨간색), 동기화 완료 (초록색, 2초 후 자동 숨김)
 
 ### 주요 데이터 흐름
@@ -134,6 +141,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `setMessages(msgs)` — 전체 교체 (채널 전환), `lastReceivedMessageId`도 함께 리셋
 - `syncMessages(msgs)` — 병합 + 중복 제거 + 정렬 (재연결)
 - `prependMessages(older)` — 무한 스크롤
+- `updateMessage(id, updates)` — 특정 메시지 부분 업데이트 (수정/삭제 반영)
 
 ### themeStore
 - `theme: 'dark' | 'light'` — localStorage에 저장, `<html>`에 `.dark` 클래스 적용
@@ -144,7 +152,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `User { id, email, name }`
 - `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon? }`
 - `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon? }`
-- `Message { id, channelId, senderUserId, senderName, content, createdAt, replyToId?, replyToSenderName?, replyToContent? }`
+- `Message { id, channelId, senderId, senderName, content, createdAt, type?, editedAt?, deletedAt?, isDeleted?, replyToId?, replyToSenderName?, replyToContent? }`
 - `WorkspaceMember { name, email, role: 'OWNER'|'ADMIN'|'MEMBER' }`
 - `OpenTab { channelId, channelName, color, icon }`
 - `ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'`
@@ -187,7 +195,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 - React 19, React Router 7, TypeScript 5.9, Vite 7
 - Zustand 5 (상태 관리), framer-motion 12 (애니메이션), @stomp/stompjs 7 (WebSocket)
-- @tanstack/react-query 5, @headlessui/react 2, axios 1, date-fns 4, lucide-react
+- @headlessui/react 2, axios 1, date-fns 4, lucide-react
 
 ## 환경 변수
 
@@ -222,5 +230,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 | GET | `/api/channels/{channelId}/my-role` | 내 채널 역할 조회, `{ role: 'OWNER'|'MEMBER' }` 반환. 비멤버는 403 |
 | GET | `/api/messages/channels/:channelId/messages` | 메시지 목록 (`beforeMessageId`, `afterMessageId`, `limit` 파라미터 지원) |
 | PATCH | `/api/messages/channels/:channelId/read` | 읽음 처리 (body: `{ messageId }`) |
-| WS | `/ws` → STOMP `/topic/channels/:channelId` | 실시간 메시지 구독 |
+| PATCH | `/api/messages/{messageId}` | 메시지 수정 (body: `{ content }`) → 수정된 `MessageResponse` 반환 |
+| DELETE | `/api/messages/{messageId}` | 메시지 삭제 (소프트 삭제, `isDeleted: true`) |
+| WS | `/ws` → STOMP `/topic/channels/:channelId` | 실시간 메시지 구독. `type` 필드: `CREATED`·`UPDATED`·`DELETED` |
 | WS | `/ws` → STOMP `/app/messages` | 메시지 전송 (body: `{ channelId, content, replyToId }`) |

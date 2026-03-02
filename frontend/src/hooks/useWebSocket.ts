@@ -12,7 +12,7 @@ export function useWebSocket() {
   const reconnectCountRef = useRef(0);
   const maxReconnect = 5;
 
-  const { addMessage, syncMessages, setConnectionStatus } = useChatStore();
+  const { addMessage, syncMessages, setConnectionStatus, updateMessage } = useChatStore();
   const { currentChannelId, updateChannelLatestMessage } = useWorkspaceStore();
 
   // Ref to always capture the latest currentChannelId inside async callbacks
@@ -20,6 +20,17 @@ export function useWebSocket() {
   useEffect(() => {
     currentChannelIdRef.current = currentChannelId;
   }, [currentChannelId]);
+
+  function handleMessage(msg: Message) {
+    if (msg.type === 'UPDATED') {
+      updateMessage(msg.id, msg);
+    } else if (msg.type === 'DELETED') {
+      updateMessage(msg.id, { isDeleted: true, deletedAt: msg.deletedAt });
+    } else {
+      addMessage(msg);
+      updateChannelLatestMessage(msg.channelId, msg.content, msg.createdAt);
+    }
+  }
 
   // Connect on mount
   useEffect(() => {
@@ -33,14 +44,7 @@ export function useWebSocket() {
         const chId = currentChannelIdRef.current;
         if (chId) {
           unsubRef.current?.();
-          unsubRef.current = subscribeChannel(
-            chId,
-            (msg: Message) => {
-              addMessage(msg);
-              updateChannelLatestMessage(msg.channelId, msg.content, msg.createdAt);
-            },
-            client,
-          );
+          unsubRef.current = subscribeChannel(chId, handleMessage, client);
         }
 
         // Sync missed messages on reconnect
@@ -73,14 +77,7 @@ export function useWebSocket() {
     if (!currentChannelId || !clientRef.current?.connected) return;
 
     unsubRef.current?.();
-    unsubRef.current = subscribeChannel(
-      currentChannelId,
-      (msg: Message) => {
-        addMessage(msg);
-        updateChannelLatestMessage(msg.channelId, msg.content, msg.createdAt);
-      },
-      clientRef.current,
-    );
+    unsubRef.current = subscribeChannel(currentChannelId, handleMessage, clientRef.current);
 
     return () => {
       unsubRef.current?.();

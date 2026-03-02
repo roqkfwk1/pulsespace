@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState, useCallback, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, X, UserPlus, Lock } from 'lucide-react';
+import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, Pencil, Trash2, X, UserPlus, Lock } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
+import { useAuthStore } from '../stores/authStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useReadMessage } from '../hooks/useReadMessage';
-import { getMessages, inviteChannelMember, getChannelMyRole } from '../api/channel';
+import { getMessages, inviteChannelMember, getChannelMyRole, editMessage, deleteMessage } from '../api/channel';
 import { formatTime, formatDate, getKSTDateStr, isToday, minutesDiff } from '../utils/format';
 import MessageInput from './MessageInput';
 import Modal from './Modal';
@@ -17,9 +18,10 @@ interface Props {
 }
 
 export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Props) {
-  const { messages, connectionStatus, setMessages, prependMessages } = useChatStore();
+  const { messages, connectionStatus, setMessages, prependMessages, updateMessage } = useChatStore();
   const { currentChannelId, channels } = useWorkspaceStore();
   const currentChannel = channels.find((c) => c.id === currentChannelId);
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -29,6 +31,8 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   const [showSynced, setShowSynced] = useState(false);
   const prevStatusRef = useRef(connectionStatus);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<number | null>(null);
   const [showChInvite, setShowChInvite] = useState(false);
   const [notMember, setNotMember] = useState(false);
   const [channelRole, setChannelRole] = useState<'OWNER' | 'MEMBER' | null>(null);
@@ -49,6 +53,8 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     setMessages([]);
     setHasMore(true);
     setReplyingTo(null);
+    setEditingMessageId(null);
+    setDeletingMessageId(null);
     setNotMember(false);
     setChannelRole(null);
     setLoadingInitial(true);
@@ -128,9 +134,27 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   }, [loadingInitial, loadingOlder, hasMore, currentChannelId, messages, prependMessages]);
 
   function handleSend(content: string) {
-    const reply = replyingTo;
+    onSend(content, replyingTo ?? undefined);
     setReplyingTo(null);
-    onSend(content, reply ?? undefined);
+  }
+
+  async function handleEditSave(messageId: number, content: string) {
+    try {
+      const updated = await editMessage(messageId, content);
+      updateMessage(messageId, { content, editedAt: updated.editedAt ?? new Date().toISOString() });
+      setEditingMessageId(null);
+    } catch {
+      setEditingMessageId(null);
+    }
+  }
+
+  async function handleDelete(messageId: number) {
+    try {
+      await deleteMessage(messageId);
+      updateMessage(messageId, { isDeleted: true, deletedAt: new Date().toISOString() });
+    } catch {
+      // silently fail
+    }
   }
 
   const canInvite = channelRole === 'OWNER';
@@ -247,7 +271,7 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         {messages.map((msg, i) => {
           const prev = i > 0 ? messages[i - 1] : null;
           const senderChanged = !prev
-            || prev.senderUserId !== msg.senderUserId
+            || prev.senderId !== msg.senderId
             || prev.senderName !== msg.senderName;
           const showSender = senderChanged
             || (!!prev && minutesDiff(prev.createdAt, msg.createdAt) >= 5);
@@ -303,12 +327,26 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
                     </div>
                   )}
 
-                  <p className="text-[15px] text-primary leading-relaxed whitespace-pre-wrap break-words">
-                    {msg.content}
-                  </p>
+                  {msg.isDeleted ? (
+                    <p className="text-[15px] text-muted italic leading-relaxed">
+                      이 메시지는 삭제되었습니다.
+                    </p>
+                  ) : editingMessageId === msg.id ? (
+                    <InlineEditInput
+                      initialContent={msg.content}
+                      onSave={(content) => handleEditSave(msg.id, content)}
+                      onCancel={() => setEditingMessageId(null)}
+                    />
+                  ) : (
+                    <p className="text-[15px] text-primary leading-relaxed whitespace-pre-wrap break-words">
+                      {msg.content}
+                      {msg.editedAt && <span className="text-[11px] text-muted ml-1">(수정됨)</span>}
+                    </p>
+                  )}
                 </div>
 
                 {/* Hover actions */}
+                {!msg.isDeleted && (
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 shrink-0 pt-1">
                   <button
                     onClick={() => setReplyingTo(msg)}
@@ -323,13 +361,14 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
                   >
                     <Smile className="w-3.5 h-3.5 text-secondary" />
                   </button>
-                  <button
-                    className="p-1.5 hover:bg-base rounded-lg transition-colors"
-                    title="더보기"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5 text-secondary" />
-                  </button>
+                  {msg.senderId === currentUserId && (
+                    <MessageMenu
+                      onEdit={() => setEditingMessageId(msg.id)}
+                      onDelete={() => setDeletingMessageId(msg.id)}
+                    />
+                  )}
                 </div>
+                )}
               </div>
 
               {/* Inline reply input */}
@@ -389,6 +428,15 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         onClose={() => setShowChInvite(false)}
         channelId={currentChannelId}
         channelName={currentChannel?.name}
+      />
+
+      {/* Delete Confirm Modal */}
+      <DeleteConfirmModal
+        isOpen={deletingMessageId !== null}
+        onClose={() => setDeletingMessageId(null)}
+        onConfirm={() => {
+          if (deletingMessageId !== null) handleDelete(deletingMessageId);
+        }}
       />
     </div>
   );
@@ -477,6 +525,131 @@ function InviteChannelMemberModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+function MessageMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-1.5 hover:bg-base rounded-lg transition-colors"
+        title="더보기"
+      >
+        <MoreHorizontal className="w-3.5 h-3.5 text-secondary" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-28 bg-surface border border-line rounded-xl shadow-lg z-50 overflow-hidden py-1">
+          <button
+            onClick={() => { onEdit(); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-primary hover:bg-elevated transition-colors"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            수정
+          </button>
+          <button
+            onClick={() => { onDelete(); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-danger hover:bg-elevated transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            삭제
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="메시지 삭제">
+      <p className="text-secondary text-sm mb-6">이 메시지를 삭제하시겠습니까?<br />삭제된 메시지는 복구할 수 없습니다.</p>
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-secondary hover:text-primary transition-colors"
+        >
+          취소
+        </button>
+        <button
+          onClick={() => { onConfirm(); onClose(); }}
+          className="px-4 py-2 bg-danger text-white font-medium rounded-xl hover:bg-danger/90 transition-colors"
+        >
+          삭제
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function InlineEditInput({
+  initialContent,
+  onSave,
+  onCancel,
+}: {
+  initialContent: string;
+  onSave: (content: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initialContent);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (text.trim()) onSave(text.trim());
+    }
+    if (e.key === 'Escape') {
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="border border-accent/50 rounded-xl p-2 bg-surface">
+      <textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className="w-full bg-transparent text-[15px] text-primary placeholder:text-muted resize-none outline-none leading-relaxed"
+        rows={2}
+      />
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[11px] text-muted">
+          <kbd className="px-1 py-0.5 bg-elevated rounded text-[10px]">Enter</kbd> 저장
+          <span className="mx-1">·</span>
+          <kbd className="px-1 py-0.5 bg-elevated rounded text-[10px]">Esc</kbd> 취소
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1 text-sm text-secondary hover:text-primary transition-colors rounded-lg"
+          >
+            취소
+          </button>
+          <button
+            onClick={() => { if (text.trim()) onSave(text.trim()); }}
+            disabled={!text.trim()}
+            className="px-3 py-1 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-30"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

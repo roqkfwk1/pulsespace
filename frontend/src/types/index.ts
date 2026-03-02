@@ -33,10 +33,14 @@ export interface Channel {
 export interface Message {
   id: number;
   channelId: number;
-  senderUserId: number;
+  senderId: number;
   senderName: string;
   content: string;
   createdAt: string;
+  type?: 'CREATED' | 'UPDATED' | 'DELETED';
+  editedAt?: string;
+  deletedAt?: string;
+  isDeleted?: boolean;
   replyToId?: number;
   replyToSenderName?: string;
   replyToContent?: string;

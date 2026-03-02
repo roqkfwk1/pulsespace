@@ -10,6 +10,7 @@ interface ChatState {
   syncMessages: (newMessages: Message[]) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
   prependMessages: (older: Message[]) => void;
+  updateMessage: (id: number, updates: Partial<Message>) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -46,4 +47,8 @@ export const useChatStore = create<ChatState>((set) => ({
       const unique = older.filter((m) => !existingIds.has(m.id));
       return { messages: [...unique, ...state.messages] };
     }),
+  updateMessage: (id, updates) =>
+    set((state) => ({
+      messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    })),
 }));

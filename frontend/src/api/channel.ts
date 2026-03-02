@@ -57,6 +57,21 @@ export async function inviteChannelMember(channelId: number, email: string): Pro
   );
 }
 
+export async function editMessage(messageId: number, content: string): Promise<Message> {
+  const res = await axios.patch(
+    `${BASE}/api/messages/${messageId}`,
+    { content },
+    { headers: authHeaders() }
+  );
+  return res.data;
+}
+
+export async function deleteMessage(messageId: number): Promise<void> {
+  await axios.delete(`${BASE}/api/messages/${messageId}`, {
+    headers: authHeaders(),
+  });
+}
+
 /** 403이면 null 반환 (채널 멤버가 아님) */
 export async function getChannelMyRole(channelId: number): Promise<'OWNER' | 'MEMBER' | null> {
   try {
