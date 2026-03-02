@@ -55,6 +55,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()  // 인증 API는 모두 허용
                         .requestMatchers("/ws/**").permitAll() // WebSocket 엔드포인트 허용
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger 허용
                         .anyRequest().authenticated()  // 나머지는 인증 필요
                 );
 
