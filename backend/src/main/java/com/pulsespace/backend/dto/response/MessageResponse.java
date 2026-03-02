@@ -12,6 +12,7 @@ public class MessageResponse {
 
     private Long id;
     private Long channelId;
+    private Long senderId;
     private String senderName;
     private String content;
     private Long replyToId;
@@ -19,18 +20,21 @@ public class MessageResponse {
     private LocalDateTime editedAt;
     private LocalDateTime deletedAt;
     private Boolean isDeleted;
+    private String type; // CREATED, UPDATED, DELETED
 
-    public static MessageResponse of(Message message){
+    public static MessageResponse of(Message message, String type){
         return new MessageResponse(
                 message.getId(),
                 message.getChannel().getId(),
+                message.getSender().getId(),
                 message.getSender().getName(),
                 message.getContent(),
                 message.getReplyToId(),
                 message.getCreatedAt(),
                 message.getEditedAt(),
                 message.getDeletedAt(),
-                message.getDeletedAt() != null
+                message.getDeletedAt() != null,
+                type
         );
     }
 }

@@ -8,6 +8,7 @@ import com.pulsespace.backend.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ import java.util.List;
 public class MessageController {
 
     private final MessageService messageService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * 채널의 최신 메시지 50개 조회
@@ -30,7 +32,7 @@ public class MessageController {
 
         // DTO 변환
         List<MessageResponse> response = messages.stream()
-                .map(MessageResponse::of)
+                .map(message -> MessageResponse.of(message, null))
                 .toList();
 
         return ResponseEntity.ok(response);
@@ -54,7 +56,12 @@ public class MessageController {
     @PatchMapping("/{messageId}")
     public ResponseEntity<Void> updateContent(@AuthenticationPrincipal Long userId, @PathVariable Long messageId, @Valid @RequestBody UpdateMessageRequest request) {
         // 메시지 수정
-        messageService.updateContent(userId, messageId, request.getContent());
+        Message message = messageService.updateContent(userId, messageId, request.getContent());
+
+        // 메시지 수정 후 해당 채널 구독자들에게 전송
+        messagingTemplate.convertAndSend(
+                "/topic/channels/" + message.getChannel().getId(),
+                MessageResponse.of(message, "UPDATED"));
 
         return ResponseEntity.noContent().build();
     }
@@ -65,7 +72,12 @@ public class MessageController {
     @DeleteMapping("/{messageId}")
     public ResponseEntity<Void> deleteContent(@AuthenticationPrincipal Long userId, @PathVariable Long messageId) {
         // 메시지 삭제
-        messageService.deleteMessage(userId, messageId);
+        Message message = messageService.deleteMessage(userId, messageId);
+
+        // 메시지 삭제 후 해당 채널 구독자들에게 전송
+        messagingTemplate.convertAndSend(
+                "/topic/channels/" + message.getChannel().getId(),
+                MessageResponse.of(message, "DELETED"));
 
         return ResponseEntity.noContent().build();
     }

@@ -89,9 +89,9 @@ public class MessageService {
      * 메시지 수정
      */
     @Transactional
-    public void updateContent(Long userId, Long messageId, String content) {
+    public Message updateContent(Long userId, Long messageId, String content) {
         // 메시지 조회
-        Message message = messageRepository.findById(messageId)
+        Message message = messageRepository.findWithSenderById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
 
         // 메시지 삭제 여부 확인
@@ -106,15 +106,17 @@ public class MessageService {
 
         // 메시지 업데이트
         message.updateContent(content);
+
+        return message;
     }
 
     /**
      * 메시지 삭제
      */
     @Transactional
-    public void deleteMessage(Long userId, Long messageId) {
+    public Message deleteMessage(Long userId, Long messageId) {
         // 메시지 조회
-        Message message = messageRepository.findById(messageId)
+        Message message = messageRepository.findWithSenderById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
 
         // 메시지 삭제 여부 확인
@@ -129,5 +131,7 @@ public class MessageService {
 
         // 메시지 삭제
         message.delete();
+
+        return message;
     }
 }

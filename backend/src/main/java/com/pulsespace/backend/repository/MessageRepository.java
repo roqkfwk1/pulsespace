@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
@@ -20,4 +21,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     // 특정 메시지 이전의 메시지들 (페이징 - 더 보기)
     List<Message> findTop50ByChannelIdAndIdLessThanOrderByIdDesc(Long channelId, Long messageId);
+
+    // 메시지 단건 조회
+    @Query("select m from Message m join fetch m.sender where m.id = :messageId")
+    Optional<Message> findWithSenderById(@Param("messageId") Long messageId);
 }

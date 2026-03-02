@@ -30,7 +30,6 @@ public class WebSocketMessageController {
         // 메시지 저장
         Message message = messageService.sendMessage(
                 userId,
-
                 request.getChannelId(),
                 request.getContent(),
                 request.getReplyToId()
@@ -39,7 +38,7 @@ public class WebSocketMessageController {
         // 해당 채널 구독자들에게 전송
         messagingTemplate.convertAndSend(
                 "/topic/channels/" + request.getChannelId(),
-                MessageResponse.of(message)
+                MessageResponse.of(message, "CREATED")
         );
     }
 }
