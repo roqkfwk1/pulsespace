@@ -63,14 +63,15 @@ public class ChannelService {
     /**
      * 워크스페이스의 채널 목록 조회
      */
+    @Transactional(readOnly = true)
     public List<Channel> getWorkspaceChannels(Long userId, Long workspaceId) {
         // 권한 체크 - 워크스페이스 멤버인지 확인
         if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
             throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
-        // 채널 목록 조회 (최신순)
-        return channelRepository.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId);
+        // 채널 목록 조회 (PUBLIC: 전체, PRIVATE: 멤버만, 최신순)
+        return channelRepository.findVisibleChannelsByWorkspaceIdAndUserId(workspaceId, userId);
     }
 
     /**
