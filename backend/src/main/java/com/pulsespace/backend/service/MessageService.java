@@ -4,6 +4,8 @@ import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.channel.ChannelMember;
 import com.pulsespace.backend.domain.message.Message;
 import com.pulsespace.backend.domain.user.User;
+import com.pulsespace.backend.exception.BusinessException;
+import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.ChannelMemberRepository;
 import com.pulsespace.backend.repository.ChannelRepository;
 import com.pulsespace.backend.repository.MessageRepository;
@@ -30,15 +32,15 @@ public class MessageService {
     public Message sendMessage(Long userId, Long channelId, String content, Long replyToId) {
         // 권한 체크 - 채널 멤버인지
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
-            throw new IllegalArgumentException("채널 멤버가 아닙니다.");
+            throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
         // User, Channel 찾기
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Channel channel = channelRepository.findById(channelId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 채널입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHANNEL_NOT_FOUND));
 
         // Message 생성
         Message message = Message.builder()
@@ -59,7 +61,7 @@ public class MessageService {
     public List<Message> getChannelMessages(Long userId, Long channelId) {
         // 권한 체크
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
-            throw new IllegalArgumentException("채널 멤버가 아닙니다.");
+            throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
         // 메시지 목록 조회 (최신 50개, 역순)
@@ -74,7 +76,7 @@ public class MessageService {
         // ChannelMember 찾기
         ChannelMember member = channelMemberRepository
                 .findByChannelIdAndUserId(channelId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("채널 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
 
         // Entity의 메서드 호출
         member.updateLastReadMessage(messageId);

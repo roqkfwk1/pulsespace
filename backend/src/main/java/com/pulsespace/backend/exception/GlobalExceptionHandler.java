@@ -27,14 +27,14 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 비즈니스 로직 예외 (400 Bad Request)
-     * IllegalArgumentException
+     * 비즈니스 로직 예외
+     * BusinessException
      */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e) {
-
-        ErrorResponse error = new ErrorResponse(400, e.getMessage());
-        return ResponseEntity.status(400).body(error);
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
+        ErrorCode code = e.getErrorCode();
+        ErrorResponse error = new ErrorResponse(code.getStatus(), code.getMessage());
+        return ResponseEntity.status(code.getStatus()).body(error);
     }
 
     /**

@@ -3,6 +3,8 @@ package com.pulsespace.backend.service;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
+import com.pulsespace.backend.exception.BusinessException;
+import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.UserRepository;
 import com.pulsespace.backend.repository.WorkspaceMemberRepository;
 import com.pulsespace.backend.repository.WorkspaceRepository;
@@ -27,7 +29,7 @@ public class WorkspaceService {
     public Workspace createWorkspace(Long userId, String name, String description) {
         // User 찾기
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // Workspace 생성
         Workspace workspace = Workspace.builder()
@@ -70,23 +72,23 @@ public class WorkspaceService {
     public void addMember(String email, Long workspaceId, Long requesterId) {
         // 요청자 권한 체크 (OWNER 또는 ADMIN만 가능)
         WorkspaceMember requester = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, requesterId)
-                .orElseThrow(() -> new IllegalArgumentException("워크스페이스 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
         if (requester.getRole() != WorkspaceMember.MemberRole.OWNER &&
                 requester.getRole() != WorkspaceMember.MemberRole.ADMIN) {
-            throw new IllegalArgumentException("초대 권한이 없습니다.");
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         // 이메일로 사용자 조회
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.EMAIL_NOT_FOUND));
 
         // 워크스페이스 조회
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 워크스페이스입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.WORKSPACE_NOT_FOUND));
 
         // 중복 멤버 체크
         if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
-            throw new IllegalArgumentException("이미 워크스페이스 멤버입니다.");
+            throw new BusinessException(ErrorCode.DUPLICATE_MEMBER);
         }
 
         // 멤버 추가
@@ -103,7 +105,7 @@ public class WorkspaceService {
     @Transactional(readOnly = true)
     public WorkspaceMember getMyRole(Long workspaceId, Long userId) {
         return workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("워크스페이스 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
     }
 
     /**
@@ -113,7 +115,7 @@ public class WorkspaceService {
     public List<WorkspaceMember> getWorkspaceMembers(Long workspaceId) {
         // 워크스페이스 존재 여부 체크
         if (!workspaceRepository.existsById(workspaceId)) {
-            throw new IllegalArgumentException("존재하지 않는 워크스페이스입니다.");
+            throw new BusinessException(ErrorCode.WORKSPACE_NOT_FOUND);
         }
 
         return workspaceMemberRepository.findByWorkspaceId(workspaceId);

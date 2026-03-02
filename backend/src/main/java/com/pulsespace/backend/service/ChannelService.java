@@ -4,6 +4,8 @@ import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.channel.ChannelMember;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
+import com.pulsespace.backend.exception.BusinessException;
+import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.*;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,15 +30,15 @@ public class ChannelService {
     public Channel createChannel(Long userId, Long workspaceId, String name, Channel.ChannelVisibility visibility) {
         // 권한 체크 (워크스페이스 멤버인지)
         if(!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)){
-            throw new IllegalArgumentException("워크스페이스 멤버가 아닙니다.");
+            throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
         // User, Workspace 찾기
         User user = userRepository.findById(userId).
-                orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 워크스페이스입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.WORKSPACE_NOT_FOUND));
 
         // Channel 생성
         Channel channel = Channel.builder()
@@ -64,7 +66,7 @@ public class ChannelService {
     public List<Channel> getWorkspaceChannels(Long userId, Long workspaceId) {
         // 권한 체크 - 워크스페이스 멤버인지 확인
         if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
-            throw new IllegalArgumentException("워크스페이스 멤버가 아닙니다.");
+            throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
         // 채널 목록 조회 (최신순)
@@ -78,27 +80,27 @@ public class ChannelService {
     public void addMember(String email, Long channelId, Long requesterId) {
         // 채널 조회
         Channel channel = channelRepository.findById(channelId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 채널입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHANNEL_NOT_FOUND));
 
         // 요청자 권한 체크 (OWNER만 가능)
         ChannelMember requester = channelMemberRepository.findByChannelIdAndUserId(channelId, requesterId)
-                .orElseThrow(() -> new IllegalArgumentException("채널 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
         if (requester.getRole() != ChannelMember.ChannelRole.OWNER) {
-            throw new IllegalArgumentException("초대 권한이 없습니다.");
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         // 이메일로 사용자 조회
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // 워크스페이스 멤버 체크
         if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(channel.getWorkspace().getId(), user.getId())) {
-            throw new IllegalArgumentException("워크스페이스 멤버가 아닙니다.");
+            throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
         // 중복 멤버 체크
         if (channelMemberRepository.existsByChannelIdAndUserId(channelId, user.getId())) {
-            throw new IllegalArgumentException("이미 채널 멤버입니다.");
+            throw new BusinessException(ErrorCode.DUPLICATE_MEMBER);
         }
 
         // 채널 멤버 추가
@@ -116,7 +118,7 @@ public class ChannelService {
     public List<ChannelMember> getChannelMembers(Long channelId) {
         // 채널 존재 여부 체크
         if (!channelRepository.existsById(channelId)) {
-            throw new IllegalArgumentException("존재하지 않는 채널입니다.");
+            throw new BusinessException(ErrorCode.CHANNEL_NOT_FOUND);
         }
 
         return channelMemberRepository.findByChannelId(channelId);
@@ -128,6 +130,6 @@ public class ChannelService {
     @Transactional(readOnly = true)
     public ChannelMember getMyRole(Long channelId, Long userId) {
         return channelMemberRepository.findByChannelIdAndUserId(channelId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("채널 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
     }
 }
