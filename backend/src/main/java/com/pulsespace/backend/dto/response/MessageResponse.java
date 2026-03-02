@@ -16,6 +16,9 @@ public class MessageResponse {
     private String content;
     private Long replyToId;
     private LocalDateTime createdAt;
+    private LocalDateTime editedAt;
+    private LocalDateTime deletedAt;
+    private Boolean isDeleted;
 
     public static MessageResponse of(Message message){
         return new MessageResponse(
@@ -24,7 +27,10 @@ public class MessageResponse {
                 message.getSender().getName(),
                 message.getContent(),
                 message.getReplyToId(),
-                message.getCreatedAt()
+                message.getCreatedAt(),
+                message.getEditedAt(),
+                message.getDeletedAt(),
+                message.getDeletedAt() != null
         );
     }
 }

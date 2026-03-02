@@ -8,6 +8,7 @@ public enum ErrorCode {
     WORKSPACE_NOT_FOUND(404, "존재하지 않는 워크스페이스입니다."),
     CHANNEL_NOT_FOUND(404, "존재하지 않는 채널입니다."),
     EMAIL_NOT_FOUND(404, "존재하지 않는 이메일입니다."),
+    MESSAGE_NOT_FOUND(404, "존재하지 않는 메시지입니다."),
     NOT_MEMBER(403, "멤버가 아닙니다."),
     FORBIDDEN(403, "권한이 없습니다."),
     DUPLICATE_MEMBER(400, "이미 멤버입니다."),

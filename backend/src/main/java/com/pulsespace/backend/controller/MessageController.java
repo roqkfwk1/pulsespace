@@ -2,6 +2,7 @@ package com.pulsespace.backend.controller;
 
 import com.pulsespace.backend.domain.message.Message;
 import com.pulsespace.backend.dto.request.MarkAsReadRequest;
+import com.pulsespace.backend.dto.request.UpdateMessageRequest;
 import com.pulsespace.backend.dto.response.MessageResponse;
 import com.pulsespace.backend.service.MessageService;
 import jakarta.validation.Valid;
@@ -35,7 +36,6 @@ public class MessageController {
         return ResponseEntity.ok(response);
     }
 
-
     /**
      * 읽음 처리
      */
@@ -46,5 +46,27 @@ public class MessageController {
 
         // 200 OK (Body 없음)
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 메시지 수정
+     */
+    @PatchMapping("/{messageId}")
+    public ResponseEntity<Void> updateContent(@AuthenticationPrincipal Long userId, @PathVariable Long messageId, @Valid @RequestBody UpdateMessageRequest request) {
+        // 메시지 수정
+        messageService.updateContent(userId, messageId, request.getContent());
+
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 메시지 삭제
+     */
+    @DeleteMapping("/{messageId}")
+    public ResponseEntity<Void> deleteContent(@AuthenticationPrincipal Long userId, @PathVariable Long messageId) {
+        // 메시지 삭제
+        messageService.deleteMessage(userId, messageId);
+
+        return ResponseEntity.noContent().build();
     }
 }

@@ -84,4 +84,50 @@ public class MessageService {
         // 저장 (JPA 변경 감지)
         channelMemberRepository.save(member);
     }
+
+    /**
+     * 메시지 수정
+     */
+    @Transactional
+    public void updateContent(Long userId, Long messageId, String content) {
+        // 메시지 조회
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 메시지 삭제 여부 확인
+        if (message.getDeletedAt() != null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 본인 메시지인지 확인
+        if (!message.getSender().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 메시지 업데이트
+        message.updateContent(content);
+    }
+
+    /**
+     * 메시지 삭제
+     */
+    @Transactional
+    public void deleteMessage(Long userId, Long messageId) {
+        // 메시지 조회
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 메시지 삭제 여부 확인
+        if (message.getDeletedAt() != null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 본인 메시지인지 확인
+        if (!message.getSender().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 메시지 삭제
+        message.delete();
+    }
 }

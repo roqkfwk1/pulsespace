@@ -39,5 +39,18 @@ public class Message {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;    //메시지 작성 시간
 
+    private LocalDateTime editedAt;    // 수정 시간 (null이면 수정 안 됨)
+
+    private LocalDateTime deletedAt;   // 삭제 시간 (null이면 삭제 안 됨)
+
     private Long replyToId; //답장할 메시지 ID
+
+    public void updateContent(String content) {
+        this.content = content;
+        this.editedAt = LocalDateTime.now();
+    }
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+    }
 }
