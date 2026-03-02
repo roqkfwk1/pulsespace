@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Props) {
-  const { messages, connectionStatus, setMessages, prependMessages, updateMessage } = useChatStore();
+  const { messages, connectionStatus, setMessages, updateMessage } = useChatStore();
   const { currentChannelId, channels } = useWorkspaceStore();
   const currentChannel = channels.find((c) => c.id === currentChannelId);
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -26,8 +26,6 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [loadingInitial, setLoadingInitial] = useState(false);
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [showSynced, setShowSynced] = useState(false);
   const prevStatusRef = useRef(connectionStatus);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -36,6 +34,8 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   const [showChInvite, setShowChInvite] = useState(false);
   const [notMember, setNotMember] = useState(false);
   const [channelRole, setChannelRole] = useState<'OWNER' | 'MEMBER' | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { setBottomRef } = useReadMessage(currentChannelId);
 
@@ -51,7 +51,6 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     let cancelled = false;
 
     setMessages([]);
-    setHasMore(true);
     setReplyingTo(null);
     setEditingMessageId(null);
     setDeletingMessageId(null);
@@ -109,29 +108,14 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }
 
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container || loadingInitial || loadingOlder || !hasMore || !currentChannelId) return;
-    if (container.scrollTop < 100) {
-      const firstMsg = messages[0];
-      if (!firstMsg) return;
-      setLoadingOlder(true);
-      const prevHeight = container.scrollHeight;
-      getMessages(currentChannelId, { beforeMessageId: firstMsg.id, limit: 20 }).then(
-        (older) => {
-          if (older.length === 0) {
-            setHasMore(false);
-          } else {
-            prependMessages(older);
-            requestAnimationFrame(() => {
-              container.scrollTop = container.scrollHeight - prevHeight;
-            });
-          }
-          setLoadingOlder(false);
-        },
-      );
-    }
-  }, [loadingInitial, loadingOlder, hasMore, currentChannelId, messages, prependMessages]);
+  function scrollToMessage(messageId: number) {
+    const el = document.getElementById(`message-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightedMessageId(messageId);
+    highlightTimerRef.current = setTimeout(() => setHighlightedMessageId(null), 1500);
+  }
 
   function handleSend(content: string) {
     onSend(content, replyingTo ?? undefined);
@@ -241,7 +225,6 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        onScroll={handleScroll}
         className="flex-1 overflow-y-auto"
       >
         {notMember ? (
@@ -261,20 +244,14 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
             <Loader2 className="w-6 h-6 animate-spin text-accent" />
           </div>
         )}
-        {loadingOlder && (
-          <div className="text-center text-muted text-sm py-3">
-            <Loader2 className="inline w-4 h-4 animate-spin mr-2" />
-            이전 메시지 불러오는 중...
-          </div>
-        )}
-
         {messages.map((msg, i) => {
           const prev = i > 0 ? messages[i - 1] : null;
           const senderChanged = !prev
             || prev.senderId !== msg.senderId
             || prev.senderName !== msg.senderName;
           const showSender = senderChanged
-            || (!!prev && minutesDiff(prev.createdAt, msg.createdAt) >= 5);
+            || (!!prev && minutesDiff(prev.createdAt, msg.createdAt) >= 5)
+            || !!msg.replyToId;
           const showDateSeparator =
             (i === 0 && !isToday(msg.createdAt)) ||
             (prev !== null && getKSTDateStr(msg.createdAt) !== getKSTDateStr(prev.createdAt));
@@ -289,8 +266,13 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
                 </div>
               )}
               <div
-                className={`group relative hover:bg-elevated/40 transition-colors ${
+                id={`message-${msg.id}`}
+                className={`group relative transition-colors duration-300 ${
                   showSender ? 'pt-3' : 'pt-0.5'
+                } ${
+                  highlightedMessageId === msg.id
+                    ? 'bg-accent/10'
+                    : 'hover:bg-elevated/40'
                 }`}
               >
               <div className="flex items-start gap-3 px-4">
@@ -318,12 +300,46 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
                     </div>
                   )}
 
-                  {/* Reply reference */}
-                  {msg.replyToId && msg.replyToSenderName && (
-                    <div className="flex items-center gap-1.5 mb-1 text-xs text-muted">
-                      <CornerDownRight className="w-3 h-3 text-accent" />
-                      <span className="font-medium text-accent">{msg.replyToSenderName}</span>
-                      <span className="truncate max-w-[200px] opacity-70">{msg.replyToContent}</span>
+                  {/* Reply reference - 미니 아바타 + 이름 + 내용 한 줄 */}
+                  {msg.replyToId && (
+                    <div
+                      className="flex items-center gap-1.5 mb-1.5 max-w-[85%] cursor-pointer group/quote"
+                      onClick={() => scrollToMessage(msg.replyToId!)}
+                    >
+                      <div className="w-0.5 self-stretch bg-secondary rounded-full shrink-0 group-hover/quote:bg-accent transition-colors" />
+                      {(() => {
+                        const originalMsg = messages.find((m) => m.id === msg.replyToId);
+                        const name = originalMsg?.senderName ?? msg.replyToSenderName;
+
+                        if (!name && !originalMsg) {
+                          return (
+                            <span className="text-xs text-muted italic">
+                              원본 메시지를 찾을 수 없습니다.
+                            </span>
+                          );
+                        }
+
+                        const isDeleted = originalMsg?.isDeleted;
+                        const content = isDeleted
+                          ? '삭제된 메시지입니다.'
+                          : (originalMsg?.content ?? msg.replyToContent ?? '');
+
+                        return (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-4 h-4 rounded shrink-0 bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
+                              <span className="text-[9px] font-bold text-white leading-none">
+                                {name!.charAt(0)}
+                              </span>
+                            </div>
+                            <span className="text-xs font-semibold text-secondary shrink-0 group-hover/quote:text-primary transition-colors">
+                              {name}
+                            </span>
+                            <span className={`text-xs text-muted truncate ${isDeleted ? 'italic' : ''}`}>
+                              {content}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
