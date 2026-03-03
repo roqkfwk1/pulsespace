@@ -72,6 +72,12 @@ export async function deleteMessage(messageId: number): Promise<void> {
   });
 }
 
+export async function deleteChannel(channelId: number): Promise<void> {
+  await axios.delete(`${BASE}/api/channels/${channelId}`, {
+    headers: authHeaders(),
+  });
+}
+
 /** 403이면 null 반환 (채널 멤버가 아님) */
 export async function getChannelMyRole(channelId: number): Promise<'OWNER' | 'MEMBER' | null> {
   try {

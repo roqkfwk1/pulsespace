@@ -39,3 +39,9 @@ export async function getWorkspaceMyRole(workspaceId: number): Promise<'OWNER' |
   });
   return res.data.role ?? res.data;
 }
+
+export async function deleteWorkspace(workspaceId: number): Promise<void> {
+  await axios.delete(`${BASE}/api/workspaces/${workspaceId}`, {
+    headers: authHeaders(),
+  });
+}

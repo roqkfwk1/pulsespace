@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Hash, Plus, Zap, Loader2 } from 'lucide-react';
-import { getWorkspaces, createWorkspace, getWorkspaceMembers } from '../api/workspace';
+import { Hash, Plus, Zap, Loader2, Trash2 } from 'lucide-react';
+import { getWorkspaces, createWorkspace, getWorkspaceMembers, getWorkspaceMyRole, deleteWorkspace } from '../api/workspace';
 import { getChannels } from '../api/channel';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import type { Workspace, Channel } from '../types';
@@ -13,12 +13,13 @@ export default function WorkspaceSelectPage() {
   const [workspaces, setLocalWs] = useState<Workspace[]>([]);
   const [channelMap, setChannelMap] = useState<Record<number, Channel[]>>({});
   const [memberCountMap, setMemberCountMap] = useState<Record<number, number>>({});
+  const [roleMap, setRoleMap] = useState<Record<number, 'OWNER' | 'ADMIN' | 'MEMBER'>>({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
   const navigate = useNavigate();
   const { setCurrentWorkspace, setWorkspaces: setStoreWs } = useWorkspaceStore();
 
-  // Refresh workspaces
   async function refreshWorkspaces() {
     const ws = await getWorkspaces();
     setLocalWs(ws);
@@ -26,12 +27,17 @@ export default function WorkspaceSelectPage() {
 
     const results = await Promise.all(
       ws.map(async (w) => {
-        const [chs, members] = await Promise.all([getChannels(w.id), getWorkspaceMembers(w.id)]);
-        return { id: w.id, chs, memberCount: members.length };
+        const [chs, members, role] = await Promise.all([
+          getChannels(w.id),
+          getWorkspaceMembers(w.id),
+          getWorkspaceMyRole(w.id),
+        ]);
+        return { id: w.id, chs, memberCount: members.length, role };
       })
     );
     setChannelMap(Object.fromEntries(results.map((r) => [r.id, r.chs])));
     setMemberCountMap(Object.fromEntries(results.map((r) => [r.id, r.memberCount])));
+    setRoleMap(Object.fromEntries(results.map((r) => [r.id, r.role])));
   }
 
   useEffect(() => {
@@ -42,6 +48,15 @@ export default function WorkspaceSelectPage() {
   function select(ws: Workspace) {
     setCurrentWorkspace(ws);
     navigate(`/workspaces/${ws.id}`);
+  }
+
+  function handleWorkspaceDeleted(wsId: number) {
+    setLocalWs((prev) => prev.filter((w) => w.id !== wsId));
+    setStoreWs(workspaces.filter((w) => w.id !== wsId));
+    setChannelMap((prev) => { const n = { ...prev }; delete n[wsId]; return n; });
+    setMemberCountMap((prev) => { const n = { ...prev }; delete n[wsId]; return n; });
+    setRoleMap((prev) => { const n = { ...prev }; delete n[wsId]; return n; });
+    setDeleteTarget(null);
   }
 
   function getRecentChannels(wsId: number) {
@@ -96,15 +111,16 @@ export default function WorkspaceSelectPage() {
             {workspaces.map((ws, i) => {
               const recentChannels = getRecentChannels(ws.id);
               const totalUnread = getTotalUnread(ws.id);
+              const canDelete = roleMap[ws.id] === 'OWNER';
 
               return (
-                <motion.button
+                <motion.div
                   key={ws.id}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.08 }}
                   onClick={() => select(ws)}
-                  className="group bg-surface border border-line rounded-2xl overflow-hidden hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 transition-all duration-200 text-left"
+                  className="group bg-surface border border-line rounded-2xl overflow-hidden hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 transition-all duration-200 text-left cursor-pointer"
                 >
                   {/* Color bar */}
                   <div
@@ -133,9 +149,20 @@ export default function WorkspaceSelectPage() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-primary mb-0.5 group-hover:text-accent transition-colors truncate">
-                          {ws.name}
-                        </h3>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <h3 className="text-lg font-semibold text-primary group-hover:text-accent transition-colors truncate flex-1">
+                            {ws.name}
+                          </h3>
+                          {canDelete && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(ws); }}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-danger/10 text-muted hover:text-danger transition-all shrink-0"
+                              title="워크스페이스 삭제"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted">
                           <span>{(channelMap[ws.id]?.length ?? ws.channelCount ?? 0)}개 채널</span>
                           <span>·</span>
@@ -173,7 +200,7 @@ export default function WorkspaceSelectPage() {
                       </div>
                     )}
                   </div>
-                </motion.button>
+                </motion.div>
               );
             })}
 
@@ -203,6 +230,16 @@ export default function WorkspaceSelectPage() {
             refreshWorkspaces();
           }}
         />
+
+        {/* Delete Workspace Modal */}
+        {deleteTarget && (
+          <DeleteWorkspaceModal
+            workspace={deleteTarget}
+            isOpen={!!deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onDeleted={() => handleWorkspaceDeleted(deleteTarget.id)}
+          />
+        )}
       </main>
     </div>
   );
@@ -299,6 +336,79 @@ function CreateWorkspaceModal({
           </button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function DeleteWorkspaceModal({
+  workspace,
+  isOpen,
+  onClose,
+  onDeleted,
+}: {
+  workspace: Workspace;
+  isOpen: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleDelete() {
+    setError('');
+    setLoading(true);
+    try {
+      await deleteWorkspace(workspace.id);
+      onDeleted();
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        setError(axiosErr.response?.data?.message || '워크스페이스 삭제에 실패했습니다.');
+      } else {
+        setError('워크스페이스 삭제에 실패했습니다.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="워크스페이스 삭제">
+      <div className="space-y-4">
+        <div className="p-4 bg-danger/10 border border-danger/20 rounded-xl">
+          <p className="text-sm text-danger font-medium mb-1">이 작업은 되돌릴 수 없습니다.</p>
+          <p className="text-sm text-secondary">
+            <span className="font-semibold text-primary">"{workspace.name}"</span> 워크스페이스를 삭제하면
+            모든 채널과 메시지가 영구적으로 삭제됩니다.
+          </p>
+        </div>
+
+        {error && (
+          <div className="p-3 border border-danger/30 bg-danger/10 rounded-xl text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={loading}
+            className="px-4 py-2 bg-danger text-white font-medium rounded-xl hover:bg-danger/80 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? '삭제 중...' : '삭제'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

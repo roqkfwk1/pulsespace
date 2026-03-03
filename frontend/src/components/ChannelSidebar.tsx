@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2, UserPlus } from 'lucide-react';
+import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2, UserPlus, Trash2 } from 'lucide-react';
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
-import { createChannel, getChannels } from '../api/channel';
+import { createChannel, getChannels, deleteChannel } from '../api/channel';
 import { getWorkspaceMyRole } from '../api/workspace';
 import type { Channel } from '../types';
 import Modal from './Modal';
@@ -11,11 +11,12 @@ import InviteWorkspaceMemberModal from './InviteWorkspaceMemberModal';
 
 export default function ChannelSidebar() {
   const { wsId } = useParams<{ wsId: string }>();
-  const { channels, openTabs, openTab, setChannels, currentWorkspace } = useWorkspaceStore();
+  const { channels, openTabs, openTab, setChannels, currentWorkspace, removeChannel } = useWorkspaceStore();
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showWsInvite, setShowWsInvite] = useState(false);
   const [wsRole, setWsRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null);
 
   useEffect(() => {
     if (!wsId) return;
@@ -30,6 +31,11 @@ export default function ChannelSidebar() {
       const updatedChannels = await getChannels(Number(wsId));
       setChannels(updatedChannels);
     }
+  }
+
+  function handleChannelDeleted(channelId: number) {
+    removeChannel(channelId);
+    setDeleteTarget(null);
   }
 
   // "AI recommended" = channels sorted by unread + recency
@@ -65,6 +71,7 @@ export default function ChannelSidebar() {
 
   const workspaceId = wsId ? Number(wsId) : null;
   const canInvite = wsRole === 'OWNER' || wsRole === 'ADMIN';
+  const canDeleteChannel = wsRole === 'OWNER' || wsRole === 'ADMIN';
 
   return (
     <aside className="w-60 bg-surface border-r border-line flex flex-col shrink-0 h-full">
@@ -106,6 +113,8 @@ export default function ChannelSidebar() {
               channel={ch}
               isOpen={isTabOpen(ch.id)}
               onSelect={() => handleSelect(ch)}
+              canDelete={canDeleteChannel}
+              onDeleteRequest={() => setDeleteTarget(ch)}
             />
           ))}
         </div>
@@ -140,6 +149,8 @@ export default function ChannelSidebar() {
                     channel={ch}
                     isOpen={isTabOpen(ch.id)}
                     onSelect={() => handleSelect(ch)}
+                    canDelete={canDeleteChannel}
+                    onDeleteRequest={() => setDeleteTarget(ch)}
                   />
                 ))}
               </DisclosurePanel>
@@ -165,6 +176,16 @@ export default function ChannelSidebar() {
           onClose={() => setShowWsInvite(false)}
           workspaceId={workspaceId}
           workspaceName={currentWorkspace.name}
+        />
+      )}
+
+      {/* Delete Channel Modal */}
+      {deleteTarget && (
+        <DeleteChannelModal
+          channel={deleteTarget}
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => handleChannelDeleted(deleteTarget.id)}
         />
       )}
     </aside>
@@ -308,37 +329,135 @@ function CreateChannelModal({
   );
 }
 
-function ChannelItem({ channel, isOpen, onSelect }: { channel: Channel; isOpen: boolean; onSelect: () => void }) {
-  return (
-    <button
-      onClick={onSelect}
-      className={`
-        w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left
-        transition-all duration-150
-        ${isOpen
-          ? 'bg-accent-light text-accent'
-          : 'text-secondary hover:bg-elevated hover:text-primary'
-        }
-      `}
-    >
-      {/* Emoji icon */}
-      <span className="text-sm shrink-0 w-5 text-center">{channel.icon ?? '💬'}</span>
+function DeleteChannelModal({
+  channel,
+  isOpen,
+  onClose,
+  onDeleted,
+}: {
+  channel: Channel;
+  isOpen: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-      {/* Visibility icon */}
-      {channel.visibility === 'PRIVATE'
-        ? <Lock className="w-3.5 h-3.5 shrink-0 opacity-60" />
-        : <Hash className="w-3.5 h-3.5 shrink-0 opacity-60" />
+  async function handleDelete() {
+    setError('');
+    setLoading(true);
+    try {
+      await deleteChannel(channel.id);
+      onDeleted();
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        setError(axiosErr.response?.data?.message || '채널 삭제에 실패했습니다.');
+      } else {
+        setError('채널 삭제에 실패했습니다.');
       }
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      {/* Name */}
-      <span className="flex-1 text-sm truncate">{channel.name}</span>
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="채널 삭제">
+      <div className="space-y-4">
+        <div className="p-4 bg-danger/10 border border-danger/20 rounded-xl">
+          <p className="text-sm text-danger font-medium mb-1">이 작업은 되돌릴 수 없습니다.</p>
+          <p className="text-sm text-secondary">
+            <span className="font-semibold text-primary">"{channel.name}"</span> 채널과 모든 메시지가
+            영구적으로 삭제됩니다.
+          </p>
+        </div>
 
-      {/* Unread badge */}
-      {!!channel.unreadCount && channel.unreadCount > 0 && !isOpen && (
-        <span className="px-1.5 py-0.5 bg-danger text-white text-[10px] font-bold rounded-full shrink-0 min-w-[18px] text-center">
-          {channel.unreadCount}
-        </span>
+        {error && (
+          <div className="p-3 border border-danger/30 bg-danger/10 rounded-xl text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={loading}
+            className="px-4 py-2 bg-danger text-white font-medium rounded-xl hover:bg-danger/80 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? '삭제 중...' : '삭제'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ChannelItem({
+  channel,
+  isOpen,
+  onSelect,
+  canDelete,
+  onDeleteRequest,
+}: {
+  channel: Channel;
+  isOpen: boolean;
+  onSelect: () => void;
+  canDelete?: boolean;
+  onDeleteRequest?: () => void;
+}) {
+  return (
+    <div className="relative group/channel">
+      <button
+        onClick={onSelect}
+        className={`
+          w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left
+          transition-all duration-150
+          ${isOpen
+            ? 'bg-accent-light text-accent'
+            : 'text-secondary hover:bg-elevated hover:text-primary'
+          }
+          ${canDelete ? 'pr-7' : ''}
+        `}
+      >
+        {/* Emoji icon */}
+        <span className="text-sm shrink-0 w-5 text-center">{channel.icon ?? '💬'}</span>
+
+        {/* Visibility icon */}
+        {channel.visibility === 'PRIVATE'
+          ? <Lock className="w-3.5 h-3.5 shrink-0 opacity-60" />
+          : <Hash className="w-3.5 h-3.5 shrink-0 opacity-60" />
+        }
+
+        {/* Name */}
+        <span className="flex-1 text-sm truncate">{channel.name}</span>
+
+        {/* Unread badge */}
+        {!!channel.unreadCount && channel.unreadCount > 0 && !isOpen && (
+          <span className="px-1.5 py-0.5 bg-danger text-white text-[10px] font-bold rounded-full shrink-0 min-w-[18px] text-center">
+            {channel.unreadCount}
+          </span>
+        )}
+      </button>
+
+      {canDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDeleteRequest?.(); }}
+          className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/channel:opacity-100 hover:bg-danger/10 text-muted hover:text-danger transition-all"
+          title="채널 삭제"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
       )}
-    </button>
+    </div>
   );
 }
