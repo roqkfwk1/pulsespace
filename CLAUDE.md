@@ -224,7 +224,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 | GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ name, email, role }]` 반환 |
 | POST | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 초대 |
 | GET | `/api/workspaces/{workspaceId}/my-role` | 내 워크스페이스 역할 조회, `{ role: 'OWNER'|'ADMIN'|'MEMBER' }` 반환 |
-| GET | `/api/channels/workspaces/:workspaceId/channels` | 워크스페이스 내 채널 목록 |
+| GET | `/api/workspaces/:workspaceId/channels` | 워크스페이스 내 채널 목록 |
 | POST | `/api/channels` | 채널 생성 |
 | POST | `/api/channels/{channelId}/members` | 채널 멤버 초대 |
 | GET | `/api/channels/{channelId}/my-role` | 내 채널 역할 조회, `{ role: 'OWNER'|'MEMBER' }` 반환. 비멤버는 403 |

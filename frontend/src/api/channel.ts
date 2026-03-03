@@ -5,7 +5,7 @@ import type { Channel, Message } from '../types';
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
 export async function getChannels(workspaceId: number): Promise<Channel[]> {
-  const res = await axios.get(`${BASE}/api/channels/workspaces/${workspaceId}/channels`, {
+  const res = await axios.get(`${BASE}/api/workspaces/${workspaceId}/channels`, {
     headers: authHeaders(),
   });
   return res.data;
