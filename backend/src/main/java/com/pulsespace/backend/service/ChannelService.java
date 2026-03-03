@@ -4,6 +4,7 @@ import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.channel.ChannelMember;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
+import com.pulsespace.backend.domain.workspace.WorkspaceMember;
 import com.pulsespace.backend.exception.BusinessException;
 import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.*;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,7 @@ public class ChannelService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
 
     /**
      * 채널 생성
@@ -132,5 +135,39 @@ public class ChannelService {
     public ChannelMember getMyRole(Long channelId, Long userId) {
         return channelMemberRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
+    }
+
+    /**
+     * 채널 삭제
+     */
+    @Transactional
+    public void deleteChannel(Long channelId, Long userId) {
+        // 채널 조회
+        Channel channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHANNEL_NOT_FOUND));
+
+        // 채널 멤버 조회 (없을 수도 있음)
+        Optional<ChannelMember> channelMember = channelMemberRepository.findByChannelIdAndUserId(channelId, userId);
+
+        // 워크스페이스 멤버 조회
+        WorkspaceMember workspaceMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(channel.getWorkspace().getId(), userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
+
+        // 채널 OWNER 또는 워크스페이스 OWNER/ADMIN 이면 삭제 가능
+        boolean isChannelOwner = channelMember.isPresent() && channelMember.get().getRole() == ChannelMember.ChannelRole.OWNER;
+        boolean isWorkspaceOwnerOrAdmin = workspaceMember.getRole() == WorkspaceMember.MemberRole.OWNER || workspaceMember.getRole() == WorkspaceMember.MemberRole.ADMIN;
+
+        if (!isChannelOwner && !isWorkspaceOwnerOrAdmin) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 메시지 삭제
+        messageRepository.deleteByChannelId(channelId);
+
+        // 채널 멤버 삭제
+        channelMemberRepository.deleteByChannelId(channelId);
+
+        // 채널 삭제(관련 데이터 모두 삭제)
+        channelRepository.delete(channel);
     }
 }

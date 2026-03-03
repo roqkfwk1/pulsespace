@@ -85,4 +85,15 @@ public class ChannelController {
         ChannelMember member = channelService.getMyRole(channelId, userId);
         return ResponseEntity.ok(member.getRole().name());
     }
+
+    /**
+     * 채널 삭제
+     */
+    @DeleteMapping("/{channelId}")
+    public ResponseEntity<Void> deleteChannel(@PathVariable Long channelId, @AuthenticationPrincipal Long userId) {
+        // 채널 삭제
+        channelService.deleteChannel(channelId, userId);
+
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -25,4 +25,7 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 
     // 멤버십 존재 여부 (권한 체크용)
     boolean existsByWorkspaceIdAndUserId(Long workspaceId, Long userId);
+
+    // 워크스페이스의 멤버 전체 삭제
+    void deleteByWorkspaceId(Long workspaceId);
 }

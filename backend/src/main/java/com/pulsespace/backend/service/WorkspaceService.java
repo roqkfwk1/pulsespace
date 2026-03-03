@@ -1,13 +1,12 @@
 package com.pulsespace.backend.service;
 
+import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
 import com.pulsespace.backend.exception.BusinessException;
 import com.pulsespace.backend.exception.ErrorCode;
-import com.pulsespace.backend.repository.UserRepository;
-import com.pulsespace.backend.repository.WorkspaceMemberRepository;
-import com.pulsespace.backend.repository.WorkspaceRepository;
+import com.pulsespace.backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +20,9 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserRepository userRepository;
+    private final ChannelRepository channelRepository;
+    private final ChannelMemberRepository channelMemberRepository;
+    private final MessageRepository messageRepository;
 
     /**
      * 워크스페이스 생성
@@ -119,5 +121,43 @@ public class WorkspaceService {
         }
 
         return workspaceMemberRepository.findByWorkspaceId(workspaceId);
+    }
+
+    /**
+     * 워크스페이스 삭제
+     */
+    @Transactional
+    public void deleteWorkspace(Long workspaceId, Long userId) {
+        // 워크스페이스 조회
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.WORKSPACE_NOT_FOUND));
+
+        // 권한 조회
+        if(!workspace.getOwner().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 워크스페이스 채널 조회
+        List<Channel> channels = channelRepository.findByWorkspaceId(workspaceId);
+
+        // 채널 ID 목록 추출
+        List<Long> channelIds = channels.stream()
+                .map(Channel::getId)
+                .toList();
+
+        // 워크스페이스의 채널 메시지 전체 삭제
+        messageRepository.deleteByChannelIdIn(channelIds);
+
+        // 워크스페이스의 채널 멤버 전체 삭제
+        channelMemberRepository.deleteByChannelIdIn(channelIds);
+
+        // 워크스페이스의 채널 전체 삭제
+        channelRepository.deleteByWorkspaceId(workspaceId);
+
+        // 워크스페이스 멤버 삭제
+        workspaceMemberRepository.deleteByWorkspaceId(workspaceId);
+
+        // 워크스페이스 삭제(관련 데이터 모두 삭제)
+        workspaceRepository.delete(workspace);
     }
 }

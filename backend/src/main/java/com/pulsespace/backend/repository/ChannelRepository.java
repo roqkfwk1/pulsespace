@@ -22,4 +22,10 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     // 워크스페이스에서 이름으로 채널 찾기
     Optional<Channel> findByWorkspaceIdAndName(Long workspaceId, String name);
+
+    // 워크스페이스의 채널 목록 조회
+    List<Channel> findByWorkspaceId(Long workspaceId);
+
+    // 워크스페이스의 채널 전체 삭제
+    void deleteByWorkspaceId(Long workspaceId);
 }

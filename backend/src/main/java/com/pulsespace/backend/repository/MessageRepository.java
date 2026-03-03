@@ -27,4 +27,10 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     // 메시지 단건 조회
     @Query("select m from Message m join fetch m.sender where m.id = :messageId")
     Optional<Message> findWithSenderById(@Param("messageId") Long messageId);
+
+    // 채널의 메시지 전체 삭제
+    void deleteByChannelId(Long channelId);
+
+    // 여러 채널의 메시지 전체 삭제
+    void deleteByChannelIdIn(List<Long> channelIds);
 }

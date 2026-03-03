@@ -24,4 +24,10 @@ public interface ChannelMemberRepository extends JpaRepository<ChannelMember, Lo
 
     // 멤버십 존재 여부 (권한 체크용)
     boolean existsByChannelIdAndUserId(Long channelId, Long userId);
+
+    // 채널의 멤버 전체 삭제
+    void deleteByChannelId(Long channelId);
+
+    // 여러 채널의 멤버 전체 삭제
+    void deleteByChannelIdIn(List<Long> channelIds);
 }
