@@ -27,12 +27,12 @@ export async function createChannel(
 
 export async function getMessages(
   channelId: number,
-  opts?: { beforeMessageId?: number; afterMessageId?: number; limit?: number }
+  opts?: { cursorId?: number; afterMessageId?: number; limit?: number }
 ): Promise<Message[]> {
   const res = await axios.get(`${BASE}/api/messages/channels/${channelId}/messages`, {
     headers: authHeaders(),
     params: {
-      beforeMessageId: opts?.beforeMessageId,
+      cursorId: opts?.cursorId,
       afterMessageId: opts?.afterMessageId,
       limit: opts?.limit,
     },

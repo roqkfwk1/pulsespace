@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useRef, useState, useCallback, type FormEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, Pencil, Trash2, X, UserPlus, Lock } from 'lucide-react';
+import { Hash, Users, Loader2, CheckCircle2, CornerDownRight, Smile, MoreHorizontal, Pencil, Trash2, X, UserPlus, Lock, ArrowDown } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { useAuthStore } from '../stores/authStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Props) {
-  const { messages, connectionStatus, setMessages, updateMessage } = useChatStore();
+  const { messages, connectionStatus, setMessages, updateMessage, prependMessages } = useChatStore();
   const { currentChannelId, channels } = useWorkspaceStore();
   const currentChannel = channels.find((c) => c.id === currentChannelId);
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -26,6 +26,14 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [showNewMsgBtn, setShowNewMsgBtn] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const scrollAnchorRef = useRef<number | null>(null);
+  const initialScrollPendingRef = useRef(false);
+  const pendingScrollToBottomRef = useRef(false);
+  const lastMsgIdRef = useRef<number | null>(null);
   const [showSynced, setShowSynced] = useState(false);
   const prevStatusRef = useRef(connectionStatus);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -56,6 +64,11 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     setDeletingMessageId(null);
     setNotMember(false);
     setChannelRole(null);
+    setHasMore(true);
+    setShowNewMsgBtn(false);
+    lastMsgIdRef.current = null;
+    pendingScrollToBottomRef.current = false;
+    initialScrollPendingRef.current = false;
     setLoadingInitial(true);
 
     getChannelMyRole(currentChannelId).then((role) => {
@@ -65,8 +78,8 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     getMessages(currentChannelId, { limit: 50 })
       .then((msgs) => {
         if (cancelled) return;
+        initialScrollPendingRef.current = true;
         setMessages(msgs);
-        setTimeout(() => scrollToBottom(), 50);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -85,12 +98,35 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChannelId]);
 
-  // Auto-scroll on new message if near bottom
+  // 새 메시지 수신 시 스크롤 처리 + 새 메시지 버튼
   useEffect(() => {
+    if (messages.length === 0) { lastMsgIdRef.current = null; return; }
     const container = scrollContainerRef.current;
     if (!container) return;
+
+    const lastMsg = messages[messages.length - 1];
+    // prepend 케이스: 마지막 메시지가 바뀌지 않았으면 무시
+    if (lastMsg.id === lastMsgIdRef.current) return;
+    lastMsgIdRef.current = lastMsg.id;
+
+    // 초기 로드는 useLayoutEffect가 처리
+    if (initialScrollPendingRef.current) return;
+
+    // 내가 보낸 메시지면 무조건 맨 아래로
+    if (pendingScrollToBottomRef.current) {
+      pendingScrollToBottomRef.current = false;
+      setShowNewMsgBtn(false);
+      scrollToBottom();
+      return;
+    }
+
     const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    if (nearBottom) scrollToBottom();
+    if (nearBottom) {
+      setShowNewMsgBtn(false);
+      scrollToBottom();
+    } else {
+      setShowNewMsgBtn(true);
+    }
   }, [messages.length]);
 
   // Synced banner
@@ -108,6 +144,55 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }
 
+  // 초기 진입 스크롤 + prepend 후 스크롤 위치 복원
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (initialScrollPendingRef.current && messages.length > 0) {
+      // 채널 진입 시 즉시 맨 아래로
+      container.scrollTop = container.scrollHeight;
+      initialScrollPendingRef.current = false;
+      lastMsgIdRef.current = messages[messages.length - 1].id;
+      return;
+    }
+
+    if (scrollAnchorRef.current !== null) {
+      // 이전 메시지 prepend 후 스크롤 위치 유지
+      container.scrollTop = container.scrollHeight - scrollAnchorRef.current;
+      scrollAnchorRef.current = null;
+    }
+  }, [messages]);
+
+  async function loadMore() {
+    if (loadingMoreRef.current || !hasMore || !currentChannelId || messages.length === 0) return;
+    const oldestId = messages[0].id;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const older = await getMessages(currentChannelId, { cursorId: oldestId });
+      if (older.length < 50) setHasMore(false);
+      if (older.length > 0) {
+        const container = scrollContainerRef.current;
+        if (container) scrollAnchorRef.current = container.scrollHeight;
+        prependMessages(older);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }
+
+  function handleScroll() {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (!loadingMoreRef.current && container.scrollTop < 100) void loadMore();
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    if (nearBottom && showNewMsgBtn) setShowNewMsgBtn(false);
+  }
+
   function scrollToMessage(messageId: number) {
     const el = document.getElementById(`message-${messageId}`);
     if (!el) return;
@@ -120,6 +205,7 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
   function handleSend(content: string) {
     onSend(content, replyingTo ?? undefined);
     setReplyingTo(null);
+    pendingScrollToBottomRef.current = true;
   }
 
   async function handleEditSave(messageId: number, content: string) {
@@ -223,9 +309,11 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
       </AnimatePresence>
 
       {/* Messages */}
+      <div className="flex-1 relative">
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto"
+        onScroll={handleScroll}
+        className="absolute inset-0 overflow-y-auto"
       >
         {notMember ? (
           <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
@@ -242,6 +330,18 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         {loadingInitial && (
           <div className="flex-1 flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-accent" />
+          </div>
+        )}
+        {loadingMore && (
+          <div className="flex items-center justify-center py-3">
+            <Loader2 className="w-4 h-4 animate-spin text-accent" />
+          </div>
+        )}
+        {!loadingMore && !hasMore && messages.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex-1 h-px bg-line" />
+            <span className="text-xs text-muted">채널의 시작입니다</span>
+            <div className="flex-1 h-px bg-line" />
           </div>
         )}
         {messages.map((msg, i) => {
@@ -416,6 +516,24 @@ export default function ChatWindow({ onSend, onToggleMembers, showMembers }: Pro
         <div ref={endRefCallback} />
           </>
         )}
+      </div>
+
+      {/* New message button */}
+      <AnimatePresence>
+        {showNewMsgBtn && (
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => { scrollToBottom(); setShowNewMsgBtn(false); }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-1.5 bg-accent text-white text-sm font-medium rounded-full shadow-lg z-30 hover:bg-accent-hover transition-colors"
+          >
+            <ArrowDown className="w-3.5 h-3.5" />
+            새 메시지
+          </motion.button>
+        )}
+      </AnimatePresence>
       </div>
 
       {/* Reply indicator in main input */}

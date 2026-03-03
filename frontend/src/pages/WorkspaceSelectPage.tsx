@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hash, Plus, Zap, Loader2 } from 'lucide-react';
-import { getWorkspaces, createWorkspace } from '../api/workspace';
+import { getWorkspaces, createWorkspace, getWorkspaceMembers } from '../api/workspace';
 import { getChannels } from '../api/channel';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import type { Workspace, Channel } from '../types';
@@ -12,6 +12,7 @@ import Modal from '../components/Modal';
 export default function WorkspaceSelectPage() {
   const [workspaces, setLocalWs] = useState<Workspace[]>([]);
   const [channelMap, setChannelMap] = useState<Record<number, Channel[]>>({});
+  const [memberCountMap, setMemberCountMap] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const navigate = useNavigate();
@@ -23,13 +24,14 @@ export default function WorkspaceSelectPage() {
     setLocalWs(ws);
     setStoreWs(ws);
 
-    const entries = await Promise.all(
+    const results = await Promise.all(
       ws.map(async (w) => {
-        const chs = await getChannels(w.id);
-        return [w.id, chs] as const;
+        const [chs, members] = await Promise.all([getChannels(w.id), getWorkspaceMembers(w.id)]);
+        return { id: w.id, chs, memberCount: members.length };
       })
     );
-    setChannelMap(Object.fromEntries(entries));
+    setChannelMap(Object.fromEntries(results.map((r) => [r.id, r.chs])));
+    setMemberCountMap(Object.fromEntries(results.map((r) => [r.id, r.memberCount])));
   }
 
   useEffect(() => {
@@ -135,9 +137,9 @@ export default function WorkspaceSelectPage() {
                           {ws.name}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-muted">
-                          <span>{ws.channelCount ?? 0}개 채널</span>
+                          <span>{(channelMap[ws.id]?.length ?? ws.channelCount ?? 0)}개 채널</span>
                           <span>·</span>
-                          <span>{ws.memberCount ?? 0}명</span>
+                          <span>{(memberCountMap[ws.id] ?? ws.memberCount ?? 0)}명</span>
                         </div>
                         {ws.description && (
                           <p className="text-xs text-secondary mt-1 truncate">{ws.description}</p>
