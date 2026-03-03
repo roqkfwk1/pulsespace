@@ -1,11 +1,14 @@
 package com.pulsespace.backend.controller;
 
+import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
 import com.pulsespace.backend.dto.request.AddMemberRequest;
 import com.pulsespace.backend.dto.request.CreateWorkspaceRequest;
+import com.pulsespace.backend.dto.response.ChannelResponse;
 import com.pulsespace.backend.dto.response.WorkspaceMemberResponse;
 import com.pulsespace.backend.dto.response.WorkspaceResponse;
+import com.pulsespace.backend.service.ChannelService;
 import com.pulsespace.backend.service.WorkspaceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ import java.util.List;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+    private final ChannelService channelService;
 
     /**
      * 워크스페이스 생성
@@ -96,5 +100,21 @@ public class WorkspaceController {
         workspaceService.deleteWorkspace(workspaceId, userId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 워크스페이스의 채널 목록 조회
+     */
+    @GetMapping("/{workspaceId}/channels")
+    public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(@AuthenticationPrincipal Long userId, @PathVariable Long workspaceId) {
+        // 워크스페이스의 채널 목록 조회
+        List<Channel> channels = channelService.getWorkspaceChannels(userId, workspaceId);
+
+        // DTO 변환
+        List<ChannelResponse> response = channels.stream()
+                .map(ChannelResponse::of)
+                .toList();
+
+        return ResponseEntity.ok(response);
     }
 }

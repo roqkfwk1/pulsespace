@@ -35,22 +35,6 @@ public class ChannelController {
     }
 
     /**
-     * 워크스페이스의 채널 목록 조회
-      */
-    @GetMapping("/workspaces/{workspaceId}/channels")
-    public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(@AuthenticationPrincipal Long userId, @PathVariable Long workspaceId) {
-        // 워크스페이스의 채널 목록 조회
-        List<Channel> channels = channelService.getWorkspaceChannels(userId, workspaceId);
-
-        // DTO 변환
-        List<ChannelResponse> response = channels.stream()
-                .map(ChannelResponse::of)
-                .toList();
-
-        return ResponseEntity.ok(response);
-    }
-
-    /**
      * 채널 멤버 초대
      */
     @PostMapping("/{channelId}/members")
