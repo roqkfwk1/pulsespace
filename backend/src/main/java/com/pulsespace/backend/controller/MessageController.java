@@ -23,12 +23,12 @@ public class MessageController {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * 채널의 최신 메시지 50개 조회
+     * 채널의 메시지 50개 조회(커서기반 페이지네이션)
      */
     @GetMapping("/channels/{channelId}/messages")
-    public ResponseEntity<List<MessageResponse>> getChannelMessages(@AuthenticationPrincipal Long userId, @PathVariable Long channelId) {
+    public ResponseEntity<List<MessageResponse>> getChannelMessages(@AuthenticationPrincipal Long userId, @PathVariable Long channelId, @RequestParam(required = false) Long cursorId) {
         // 채널의 메시지 목록 조회
-        List<Message> messages = messageService.getChannelMessages(userId, channelId);
+        List<Message> messages = messageService.getChannelMessages(userId, channelId, cursorId);
 
         // DTO 변환
         List<MessageResponse> response = messages.stream()

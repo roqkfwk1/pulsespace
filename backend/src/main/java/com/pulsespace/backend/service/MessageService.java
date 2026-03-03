@@ -11,6 +11,7 @@ import com.pulsespace.backend.repository.ChannelRepository;
 import com.pulsespace.backend.repository.MessageRepository;
 import com.pulsespace.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,17 +56,21 @@ public class MessageService {
     }
 
     /**
-     * 채널의 최신 메시지 50개 조회
+     * 채널의 메시지 50개 조회(커서기반 페이지네이션)
      */
     @Transactional(readOnly = true)
-    public List<Message> getChannelMessages(Long userId, Long channelId) {
+    public List<Message> getChannelMessages(Long userId, Long channelId, Long cursorId) {
         // 권한 체크
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
             throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
-        // 메시지 목록 조회 (최신 50개, 역순)
-        return messageRepository.findTop50WithSenderByChannelId(channelId);
+        // cursorId 없으면 최신 50개, 있으면 cursor 이전 50개
+        if (cursorId == null) {
+            return messageRepository.findTop50WithSenderByChannelId(channelId);
+        } else {
+            return messageRepository.findTop50WithSenderByChannelIdAndIdLessThan(channelId, cursorId, PageRequest.of(0, 50));
+        }
     }
 
     /**

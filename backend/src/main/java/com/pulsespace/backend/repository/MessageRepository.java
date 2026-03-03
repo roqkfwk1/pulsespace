@@ -1,6 +1,7 @@
 package com.pulsespace.backend.repository;
 
 import com.pulsespace.backend.domain.message.Message;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,7 +21,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByChannelIdAndIdGreaterThan(Long channelId, Long messageId);
 
     // 특정 메시지 이전의 메시지들 (페이징 - 더 보기)
-    List<Message> findTop50ByChannelIdAndIdLessThanOrderByIdDesc(Long channelId, Long messageId);
+    @Query("select m from Message m join fetch m.sender where m.channel.id = :channelId and m.id < :cursorId order by m.id desc")
+    List<Message> findTop50WithSenderByChannelIdAndIdLessThan(@Param("channelId") Long channelId, @Param("cursorId") Long cursorId, Pageable pageable);
 
     // 메시지 단건 조회
     @Query("select m from Message m join fetch m.sender where m.id = :messageId")
