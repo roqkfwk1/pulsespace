@@ -53,7 +53,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 - **TopNavBar** — 워크스페이스 드롭다운 전환기 (Headless UI Menu), 검색 플레이스홀더 (`⌘K`), 알림 벨 + 펄스 배지, 다크/라이트 토글, 프로필 메뉴 + 로그아웃
 - **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, 닫기 버튼, "+" 탭 추가 버튼
-- **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지, 워크스페이스 초대 버튼 (OWNER/ADMIN만 표시)
+- **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지, 워크스페이스 초대 버튼 (OWNER/ADMIN만 표시), 채널 삭제 버튼 (OWNER/ADMIN만, 호버 시 표시)
 - **WorkspaceHome** — 채널 미선택 시 표시되는 홈 화면. 워크스페이스 이름·설명·멤버 수·채널 수 표시. 멤버 수는 `/api/workspaces/{id}/members` 실시간 조회. 초대 버튼은 OWNER/ADMIN만 표시
 - **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장·이모지 / 본인 메시지는 `...` 드롭다운으로 수정·삭제), 인라인 메시지 편집, 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
 - **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨 (소유자/관리자/멤버), AnimatePresence 애니메이션 토글
@@ -61,7 +61,9 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 ### 권한 체크
 - **워크스페이스 초대**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 초대 버튼 표시 (WorkspaceHome, ChannelSidebar)
+- **워크스페이스 삭제**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER이면 삭제 버튼 표시 (WorkspaceSelectPage, 카드 호버 시)
 - **채널 초대**: `GET /api/channels/{channelId}/my-role` → OWNER이면 초대 버튼 표시. 403(비멤버)이면 버튼 숨김 (ChatWindow)
+- **채널 삭제**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 삭제 버튼 표시 (ChannelSidebar, 호버 시)
 
 ### 주요 기능
 
@@ -91,6 +93,16 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 도구 버튼: 파일 첨부, 이모지, 멘션 (플레이스홀더)
 - 키보드 힌트: `Enter` 전송, `Shift+Enter` 줄바꿈
 
+#### 읽지 않은 메시지 배지
+- `Channel.hasUnread` — 읽지 않은 메시지 존재 여부 (boolean). ChannelSidebar에서 채널명 굵게 + 흰색 점 표시
+- `Channel.unreadCount` — 읽지 않은 메시지 수. ChannelSidebar + ChannelTabBar에서 빨간 숫자 배지 표시
+- `Workspace.hasUnread` — 워크스페이스 내 읽지 않은 메시지 여부. WorkspaceSelectPage 카드 아이콘에 빨간 점 표시
+- 탭 열기 시 `openTab()`에서 해당 채널의 `hasUnread`를 즉시 `false`로 초기화 (낙관적 업데이트)
+
+#### 워크스페이스/채널 삭제
+- **워크스페이스 삭제**: WorkspaceSelectPage 카드 호버 시 삭제 버튼 (OWNER만). 확인 모달 → `DELETE /api/workspaces/{id}` → 목록에서 제거
+- **채널 삭제**: ChannelSidebar 채널 항목 호버 시 삭제 버튼 (OWNER/ADMIN). 확인 모달 → `DELETE /api/channels/{id}` → `removeChannel()`로 탭 닫기 + 목록 제거
+
 #### 메시지 수정/삭제
 - 본인 메시지(`msg.senderId === currentUserId`)에만 호버 시 `...` 버튼 → 수정/삭제 드롭다운
 - **수정**: 인라인 textarea 전환, `Enter` 저장 / `Esc` 취소. 성공 시 로컬 상태 즉시 반영 + `(수정됨)` 인라인 표시
@@ -116,8 +128,8 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ### 주요 데이터 흐름
 1. **채널 선택**: 사이드바 클릭 → `openTab(channel)` → REST로 메시지 로드 → STOMP 구독 → `lastReceivedMessageId` 추적
 2. **재연결 동기화**: 연결 끊김 감지 → 배너 표시 → 재연결 시 `lastReceivedMessageId` 이후 메시지 조회 → `syncMessages()`로 ID 기반 중복 제거 → "동기화 완료" 배너 표시
-3. **읽음 추적**: `useReadMessage` 훅이 채널 진입 시 1회 + 스크롤 하단 IntersectionObserver (디바운스 1초)로 읽음 처리. `lastReadIdRef`를 낙관적 업데이트하여 1초 이내 재진입 차단
-4. **무한 스크롤**: scrollTop < 100px → `getMessages(channelId, { beforeMessageId })` → `prependMessages()` → 스크롤 위치 복원
+3. **읽음 추적**: `useReadMessage` 훅이 채널 진입 시 1회 + 스크롤 하단 IntersectionObserver (디바운스 1초)로 읽음 처리. `lastReadIdRef`를 낙관적 업데이트하여 1초 이내 재진입 차단. 읽음 처리 성공 시 `updateChannelUnread(0)` + `updateChannelHasUnread(false)` 모두 호출하여 배지 제거
+4. **무한 스크롤**: scrollTop < 100px → `getMessages(channelId, { cursorId })` → `prependMessages()` → 스크롤 위치 복원
 
 ## 스토어 (Zustand)
 
@@ -133,7 +145,9 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `setActiveTab(channelId)` — 활성 탭 + currentChannelId 전환
 - `reorderTabs(tabs)` — 드래그 재정렬
 - `clearTabs()` — 탭 전체 초기화 (워크스페이스 전환 시 호출)
-- `updateChannelUnread(channelId, count)`, `updateChannelLatestMessage(channelId, msg, timestamp)`
+- `updateChannelUnread(channelId, count)`, `updateChannelHasUnread(channelId, bool)`, `updateChannelLatestMessage(channelId, msg, timestamp)`
+- `removeWorkspace(workspaceId)` — 워크스페이스 삭제 (currentWorkspace도 초기화)
+- `removeChannel(channelId)` — 채널 삭제 (탭 닫기 포함)
 
 ### chatStore
 - `messages: Message[]`, `lastReceivedMessageId`, `connectionStatus`
@@ -150,8 +164,8 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ## 타입 (`src/types/index.ts`)
 
 - `User { id, email, name }`
-- `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon? }`
-- `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon? }`
+- `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon?, hasUnread? }`
+- `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon?, hasUnread? }`
 - `Message { id, channelId, senderId, senderName, content, createdAt, type?, editedAt?, deletedAt?, isDeleted?, replyToId?, replyToSenderName?, replyToContent? }`
 - `WorkspaceMember { name, email, role: 'OWNER'|'ADMIN'|'MEMBER' }`
 - `OpenTab { channelId, channelName, color, icon }`
@@ -224,12 +238,14 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 | GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ name, email, role }]` 반환 |
 | POST | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 초대 |
 | GET | `/api/workspaces/{workspaceId}/my-role` | 내 워크스페이스 역할 조회, `{ role: 'OWNER'|'ADMIN'|'MEMBER' }` 반환 |
-| GET | `/api/workspaces/:workspaceId/channels` | 워크스페이스 내 채널 목록 |
+| GET | `/api/workspaces/{workspaceId}/channels` | 워크스페이스 내 채널 목록 |
+| DELETE | `/api/workspaces/{workspaceId}` | 워크스페이스 삭제 (OWNER만) |
 | POST | `/api/channels` | 채널 생성 |
+| DELETE | `/api/channels/{channelId}` | 채널 삭제 (OWNER/ADMIN) |
 | POST | `/api/channels/{channelId}/members` | 채널 멤버 초대 |
 | GET | `/api/channels/{channelId}/my-role` | 내 채널 역할 조회, `{ role: 'OWNER'|'MEMBER' }` 반환. 비멤버는 403 |
-| GET | `/api/messages/channels/:channelId/messages` | 메시지 목록 (`beforeMessageId`, `afterMessageId`, `limit` 파라미터 지원) |
-| PATCH | `/api/messages/channels/:channelId/read` | 읽음 처리 (body: `{ messageId }`) |
+| GET | `/api/messages/channels/{channelId}/messages` | 메시지 목록 (`cursorId`, `afterMessageId`, `limit` 파라미터 지원) |
+| PATCH | `/api/messages/channels/{channelId}/read` | 읽음 처리 (body: `{ messageId }`) |
 | PATCH | `/api/messages/{messageId}` | 메시지 수정 (body: `{ content }`) → 수정된 `MessageResponse` 반환 |
 | DELETE | `/api/messages/{messageId}` | 메시지 삭제 (소프트 삭제, `isDeleted: true`) |
 | WS | `/ws` → STOMP `/topic/channels/:channelId` | 실시간 메시지 구독. `type` 필드: `CREATED`·`UPDATED`·`DELETED` |

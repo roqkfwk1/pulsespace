@@ -15,6 +15,7 @@ export interface Workspace {
   colorStart?: string;
   colorEnd?: string;
   icon?: string;
+  hasUnread?: boolean;
 }
 
 export interface Channel {
@@ -28,6 +29,7 @@ export interface Channel {
   color?: string;
   description?: string;
   icon?: string;
+  hasUnread?: boolean;
 }
 
 export interface Message {

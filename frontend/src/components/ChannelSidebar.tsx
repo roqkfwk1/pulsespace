@@ -438,8 +438,15 @@ function ChannelItem({
           : <Hash className="w-3.5 h-3.5 shrink-0 opacity-60" />
         }
 
+        {/* Unread dot */}
+        {channel.hasUnread && !isOpen && (
+          <span className="text-white text-[8px] shrink-0 leading-none">●</span>
+        )}
+
         {/* Name */}
-        <span className="flex-1 text-sm truncate">{channel.name}</span>
+        <span className={`flex-1 text-sm truncate ${channel.hasUnread && !isOpen ? 'text-white font-semibold' : ''}`}>
+          {channel.name}
+        </span>
 
         {/* Unread badge */}
         {!!channel.unreadCount && channel.unreadCount > 0 && !isOpen && (

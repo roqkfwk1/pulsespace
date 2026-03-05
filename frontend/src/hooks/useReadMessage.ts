@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useChatStore } from '../stores/chatStore';
 
 export function useReadMessage(channelId: number | null) {
-  const { updateChannelUnread } = useWorkspaceStore();
+  const { updateChannelUnread, updateChannelHasUnread } = useWorkspaceStore();
   const lastReadIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -22,9 +22,10 @@ export function useReadMessage(channelId: number | null) {
     timerRef.current = setTimeout(() => {
       readChannel(channelId, lastMessage.id).then(() => {
         updateChannelUnread(channelId, 0);
+        updateChannelHasUnread(channelId, false);
       });
     }, 1000);
-  }, [channelId, updateChannelUnread]);
+  }, [channelId, updateChannelUnread, updateChannelHasUnread]);
 
   // 채널 진입 시 1회 호출
   useEffect(() => {

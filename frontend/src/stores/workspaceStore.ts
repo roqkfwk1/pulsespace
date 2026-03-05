@@ -15,6 +15,7 @@ interface WorkspaceState {
   setCurrentWorkspace: (workspace: Workspace) => void;
   setChannels: (channels: Channel[]) => void;
   updateChannelUnread: (channelId: number, unreadCount: number) => void;
+  updateChannelHasUnread: (channelId: number, hasUnread: boolean) => void;
   updateChannelLatestMessage: (channelId: number, message: string, timestamp: string) => void;
 
   // Tab actions
@@ -46,6 +47,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ch.id === channelId ? { ...ch, unreadCount } : ch
       ),
     })),
+  updateChannelHasUnread: (channelId, hasUnread) =>
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, hasUnread } : ch
+      ),
+    })),
   updateChannelLatestMessage: (channelId, message, timestamp) =>
     set((state) => ({
       channels: state.channels.map((ch) =>
@@ -58,6 +65,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   openTab: (channel) => {
     const state = get();
     const exists = state.openTabs.some((t) => t.channelId === channel.id);
+    const updatedChannels = state.channels.map((ch) =>
+      ch.id === channel.id ? { ...ch, hasUnread: false } : ch
+    );
     if (!exists) {
       set({
         openTabs: [
@@ -71,9 +81,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ],
         activeTabChannelId: channel.id,
         currentChannelId: channel.id,
+        channels: updatedChannels,
       });
     } else {
-      set({ activeTabChannelId: channel.id, currentChannelId: channel.id });
+      set({ activeTabChannelId: channel.id, currentChannelId: channel.id, channels: updatedChannels });
     }
   },
 

@@ -134,16 +134,21 @@ export default function WorkspaceSelectPage() {
                   <div className="p-5">
                     <div className="flex items-start gap-3.5 mb-4">
                       {/* Icon */}
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
-                        style={{
-                          background: `linear-gradient(135deg, ${ws.colorStart ?? '#14b8a6'}, ${ws.colorEnd ?? '#06b6d4'})`,
-                        }}
-                      >
-                        {ws.icon ? (
-                          <span className="text-2xl">{ws.icon}</span>
-                        ) : (
-                          <span className="text-lg font-bold text-white">{ws.name.charAt(0)}</span>
+                      <div className="relative shrink-0">
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                          style={{
+                            background: `linear-gradient(135deg, ${ws.colorStart ?? '#14b8a6'}, ${ws.colorEnd ?? '#06b6d4'})`,
+                          }}
+                        >
+                          {ws.icon ? (
+                            <span className="text-2xl">{ws.icon}</span>
+                          ) : (
+                            <span className="text-lg font-bold text-white">{ws.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        {ws.hasUnread && (
+                          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-danger rounded-full border-2 border-surface" />
                         )}
                       </div>
 
