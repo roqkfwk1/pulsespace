@@ -51,8 +51,13 @@ public class MessageService {
                 .replyToId(replyToId)  // null 가능
                 .build();
 
-        // 저장 및 반환
-        return messageRepository.save(message);
+        // 메시지 저장
+        messageRepository.save(message);
+
+        // 저장 후 ID 업데이트
+        channel.updateLastMessageId(message.getId());
+
+        return message;
     }
 
     /**

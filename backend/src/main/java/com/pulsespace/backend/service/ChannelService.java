@@ -5,6 +5,7 @@ import com.pulsespace.backend.domain.channel.ChannelMember;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
+import com.pulsespace.backend.dto.response.ChannelResponse;
 import com.pulsespace.backend.exception.BusinessException;
 import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.*;
@@ -67,14 +68,19 @@ public class ChannelService {
      * 워크스페이스의 채널 목록 조회
      */
     @Transactional(readOnly = true)
-    public List<Channel> getWorkspaceChannels(Long userId, Long workspaceId) {
+    public List<ChannelResponse> getWorkspaceChannels(Long userId, Long workspaceId) {
         // 권한 체크 - 워크스페이스 멤버인지 확인
         if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
             throw new BusinessException(ErrorCode.NOT_MEMBER);
         }
 
-        // 채널 목록 조회 (PUBLIC: 전체, PRIVATE: 멤버만, 최신순)
-        return channelRepository.findVisibleChannelsByWorkspaceIdAndUserId(workspaceId, userId);
+        // 채널 목록 + hasUnread 조회
+        List<Object[]> results = channelRepository.findVisibleChannelsWithUnreadByWorkspaceIdAndUserId(workspaceId, userId);
+
+        // Object[] 파싱
+        return results.stream()
+                .map(row -> ChannelResponse.of((Channel) row[0], (boolean) row[1]))
+                .toList();
     }
 
     /**

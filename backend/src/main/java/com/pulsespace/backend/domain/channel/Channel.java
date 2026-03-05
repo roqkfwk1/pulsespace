@@ -47,6 +47,13 @@ public class Channel {
     @Column(length = 7)
     private String color;   //채널 색상
 
+    @Column(name = "last_message_id")
+    private Long lastMessageId; // 채널 마지막 메시지
+
+    public void updateLastMessageId(Long messageId) {
+        this.lastMessageId = messageId;
+    }
+
     public enum ChannelVisibility {
         PUBLIC,     // 공개
         PRIVATE     // 비공개

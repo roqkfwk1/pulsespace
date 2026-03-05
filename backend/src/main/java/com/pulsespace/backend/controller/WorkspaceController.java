@@ -1,6 +1,5 @@
 package com.pulsespace.backend.controller;
 
-import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
 import com.pulsespace.backend.dto.request.AddMemberRequest;
@@ -35,7 +34,7 @@ public class WorkspaceController {
         Workspace workspace = workspaceService.createWorkspace(userId, request.getName(), request.getDescription());
 
         // DTO 변환 및 반환
-        return ResponseEntity.ok(WorkspaceResponse.of(workspace));
+        return ResponseEntity.ok(WorkspaceResponse.of(workspace, false));
     }
 
     /**
@@ -44,12 +43,7 @@ public class WorkspaceController {
     @GetMapping
     public ResponseEntity<List<WorkspaceResponse>> getMyWorkspaces(@AuthenticationPrincipal Long userId) {
         // 워크스페이스 목록 조회
-        List<Workspace> workspaces = workspaceService.getMyWorkspaces(userId);
-
-        // DTO 변환
-        List<WorkspaceResponse> response = workspaces.stream()
-                .map(WorkspaceResponse::of)
-                .toList();
+        List<WorkspaceResponse> response = workspaceService.getMyWorkspaces(userId);
 
         return ResponseEntity.ok(response);
     }
@@ -108,12 +102,7 @@ public class WorkspaceController {
     @GetMapping("/{workspaceId}/channels")
     public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(@AuthenticationPrincipal Long userId, @PathVariable Long workspaceId) {
         // 워크스페이스의 채널 목록 조회
-        List<Channel> channels = channelService.getWorkspaceChannels(userId, workspaceId);
-
-        // DTO 변환
-        List<ChannelResponse> response = channels.stream()
-                .map(ChannelResponse::of)
-                .toList();
+        List<ChannelResponse> response = channelService.getWorkspaceChannels(userId, workspaceId);
 
         return ResponseEntity.ok(response);
     }

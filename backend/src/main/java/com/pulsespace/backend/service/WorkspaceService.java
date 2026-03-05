@@ -4,6 +4,7 @@ import com.pulsespace.backend.domain.channel.Channel;
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
+import com.pulsespace.backend.dto.response.WorkspaceResponse;
 import com.pulsespace.backend.exception.BusinessException;
 import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.*;
@@ -57,13 +58,13 @@ public class WorkspaceService {
      * 나의 워크스페이스 조회
      */
     @Transactional(readOnly = true)
-    public List<Workspace> getMyWorkspaces(Long userId) {
-        // userId로 WorkspaceMember 조회
-        List<WorkspaceMember> members = workspaceMemberRepository.findByUserId(userId);
+    public List<WorkspaceResponse> getMyWorkspaces(Long userId) {
+        // 워크스페이스 목록 + hasUnread 조회
+        List<Object[]> results = workspaceRepository.findWorkspacesWithUnreadByUserId(userId);
 
-        // Workspace 목록 추출
-        return members.stream()
-                .map(WorkspaceMember::getWorkspace)
+        // Object[] 파싱
+        return results.stream()
+                .map(row -> WorkspaceResponse.of((Workspace) row[0], (boolean) row[1]))
                 .toList();
     }
 

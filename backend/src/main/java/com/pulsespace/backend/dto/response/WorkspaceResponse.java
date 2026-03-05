@@ -15,14 +15,16 @@ public class WorkspaceResponse {
     private String description;
     private String ownerName;
     private LocalDateTime createdAt;
+    private boolean hasUnread;
 
-    public static WorkspaceResponse of(Workspace workspace) {
+    public static WorkspaceResponse of(Workspace workspace, boolean hasUnread) {
         return new WorkspaceResponse(
                 workspace.getId(),
                 workspace.getName(),
                 workspace.getDescription(),
                 workspace.getOwner().getName(),
-                workspace.getCreatedAt()
+                workspace.getCreatedAt(),
+                hasUnread
         );
     }
 }

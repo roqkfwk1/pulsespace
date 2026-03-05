@@ -16,15 +16,17 @@ public class ChannelResponse {
     private Channel.ChannelVisibility visibility;
     private String description;
     private LocalDateTime createdAt;
+    private boolean hasUnread;
 
-    public static ChannelResponse of(Channel channel) {
+    public static ChannelResponse of(Channel channel, boolean hasUnread) {
         return new ChannelResponse(
                 channel.getId(),
                 channel.getWorkspace().getId(),
                 channel.getName(),
                 channel.getVisibility(),
                 channel.getDescription(),
-                channel.getCreatedAt()
+                channel.getCreatedAt(),
+                hasUnread
         );
     }
 }

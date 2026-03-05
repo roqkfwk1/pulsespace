@@ -31,7 +31,7 @@ public class ChannelController {
         Channel channel = channelService.createChannel(userId, request.getWorkspaceId(), request.getName(), request.getVisibility());
 
         // DTO 변환 및 반환
-        return ResponseEntity.ok(ChannelResponse.of(channel));
+        return ResponseEntity.ok(ChannelResponse.of(channel, false));
     }
 
     /**

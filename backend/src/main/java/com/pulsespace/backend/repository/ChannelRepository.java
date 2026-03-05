@@ -13,12 +13,18 @@ import java.util.Optional;
 public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     // 워크스페이스의 채널 조회 (PUBLIC: 전체, PRIVATE: 멤버만, 최신순)
-    @Query("SELECT c FROM Channel c WHERE c.workspace.id = :workspaceId " +
+    @Query("SELECT c, " +
+            "CASE WHEN cm.lastReadMessageId IS NULL " +
+            "OR cm.lastReadMessageId < c.lastMessageId " +
+            "THEN true ELSE false END " +
+            "FROM Channel c " +
+            "LEFT JOIN ChannelMember cm ON cm.channel.id = c.id AND cm.user.id = :userId " +
+            "WHERE c.workspace.id = :workspaceId " +
             "AND (c.visibility = 'PUBLIC' OR " +
             "(c.visibility = 'PRIVATE' AND EXISTS (" +
-            "SELECT cm FROM ChannelMember cm WHERE cm.channel = c AND cm.user.id = :userId))) " +
+            "SELECT cm2 FROM ChannelMember cm2 WHERE cm2.channel = c AND cm2.user.id = :userId))) " +
             "ORDER BY c.createdAt DESC")
-    List<Channel> findVisibleChannelsByWorkspaceIdAndUserId(@Param("workspaceId") Long workspaceId, @Param("userId") Long userId);
+    List<Object[]> findVisibleChannelsWithUnreadByWorkspaceIdAndUserId(@Param("workspaceId") Long workspaceId, @Param("userId") Long userId);
 
     // 워크스페이스에서 이름으로 채널 찾기
     Optional<Channel> findByWorkspaceIdAndName(Long workspaceId, String name);
