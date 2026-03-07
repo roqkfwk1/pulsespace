@@ -2,6 +2,7 @@ package com.pulsespace.backend.service;
 
 import com.pulsespace.backend.domain.user.User;
 import com.pulsespace.backend.dto.response.AuthResponse;
+import com.pulsespace.backend.dto.response.TokenResponse;
 import com.pulsespace.backend.exception.BusinessException;
 import com.pulsespace.backend.exception.ErrorCode;
 import com.pulsespace.backend.repository.UserRepository;
@@ -18,6 +19,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
 
     /**
      * 회원가입
@@ -53,10 +55,52 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INVALID_PASSWORD);
         }
 
-        // JWT 토큰 생성
+        // JWT Access Token 생성
         String token = jwtTokenProvider.generateToken(user.getId());
 
+        // JWT Refresh Token 생성 후 Redis 저장
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        refreshTokenService.save(user.getId(), refreshToken, jwtTokenProvider.getRefreshExpirationTime());
+
         // AuthResponse 생성 및 반환
-        return AuthResponse.of(token, user);
+        return AuthResponse.of(token, refreshToken, user);
+    }
+
+    /**
+     * 로그아웃
+     */
+    public void logout(String refreshToken) {
+        // Refresh Token 유효성 검증
+        if(!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        // userId 추출
+        Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+
+        // Refresh Token 삭제
+        refreshTokenService.delete(userId);
+    }
+
+    /**
+     * JWT Access Token 재발급
+     */
+    public TokenResponse refresh(String refreshToken) {
+        // Refresh Token 유효성 검증
+        if(!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        // userId 추출
+        Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+
+        // Redis에 저장된 토큰과 비교
+        String savedToken = refreshTokenService.get(userId);
+        if(!refreshToken.equals(savedToken)) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        // 새 Access Token 발급
+        return new TokenResponse(jwtTokenProvider.generateToken(userId));
     }
 }

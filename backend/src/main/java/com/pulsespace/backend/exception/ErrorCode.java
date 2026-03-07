@@ -13,7 +13,8 @@ public enum ErrorCode {
     FORBIDDEN(403, "권한이 없습니다."),
     DUPLICATE_MEMBER(400, "이미 멤버입니다."),
     DUPLICATE_EMAIL(400, "이미 사용 중인 이메일입니다."),
-    INVALID_PASSWORD(401, "비밀번호가 일치하지 않습니다.");
+    INVALID_PASSWORD(401, "비밀번호가 일치하지 않습니다."),
+    INVALID_TOKEN(401, "유효하지 않은 토큰입니다.");
 
     private final int status;
     private final String message;

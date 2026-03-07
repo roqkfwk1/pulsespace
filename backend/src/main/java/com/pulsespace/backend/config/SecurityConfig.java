@@ -1,6 +1,7 @@
 package com.pulsespace.backend.config;
 
 import com.pulsespace.backend.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,6 +48,12 @@ public class SecurityConfig {
                 // 세션 사용 안 함 (JWT 사용)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // 인증 실패 시 401 반환 (기본값 403 → 401로 변경)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                )
 
                 // JWT 필터 등록
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

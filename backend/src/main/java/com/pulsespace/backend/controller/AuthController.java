@@ -1,8 +1,10 @@
 package com.pulsespace.backend.controller;
 
 import com.pulsespace.backend.dto.request.LoginRequest;
+import com.pulsespace.backend.dto.request.RefreshTokenRequest;
 import com.pulsespace.backend.dto.request.SignupRequest;
 import com.pulsespace.backend.dto.response.AuthResponse;
+import com.pulsespace.backend.dto.response.TokenResponse;
 import com.pulsespace.backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,26 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request.getEmail(), request.getPassword());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 로그아웃
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestBody RefreshTokenRequest request) {
+        authService.logout(request.getRefreshToken());
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * JWT 토큰 재발급
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshTokenRequest request) {
+        TokenResponse response = authService.refresh(request.getRefreshToken());
 
         return ResponseEntity.ok(response);
     }

@@ -2,6 +2,7 @@ package com.pulsespace.backend.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -12,16 +13,20 @@ import java.util.Date;
 
 @Slf4j
 @Component
+@Getter
 public class JwtTokenProvider {
 
     private final SecretKey secretKey;
     private final long expirationTime;
+    private final long refreshExpirationTime;
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration}") long expirationTime) {
+            @Value("${jwt.expiration}") long expirationTime,
+            @Value("${jwt.refresh-expiration}") long refreshExpirationTime) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationTime = expirationTime;
+        this.refreshExpirationTime = refreshExpirationTime;
     }
 
     /**
@@ -33,6 +38,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))  // 사용자 ID
+                .claim("type", "access")    // 타입 : 엑세스
                 .issuedAt(now)  // 발급 시간
                 .expiration(expiryDate)  // 만료 시간
                 .signWith(secretKey)  // 서명
@@ -72,5 +78,21 @@ public class JwtTokenProvider {
             log.error("JWT 토큰이 잘못되었습니다.");
         }
         return false;
+    }
+
+    /**
+     * Refresh Token 생성
+     */
+    public String generateRefreshToken(Long userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshExpirationTime);
+
+        return Jwts.builder()
+                .subject(String.valueOf(userId))    // 사용자 ID
+                .claim("type", "refresh")   // 타입 : 리프레시
+                .issuedAt(now)  // 발급 시간
+                .expiration(expiryDate) // 만료 시간
+                .signWith(secretKey)    // 서명
+                .compact();
     }
 }
