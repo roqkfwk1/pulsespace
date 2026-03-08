@@ -19,8 +19,8 @@ export default function SignupPage() {
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await signup(email, password, name);
-      setAuth(token, user);
+      const { token, refreshToken, user } = await signup(email, password, name);
+      setAuth(token, refreshToken, user);
       navigate('/workspaces');
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {

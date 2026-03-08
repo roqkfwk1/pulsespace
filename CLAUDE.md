@@ -115,6 +115,14 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 모든 요청에 JWT Bearer 토큰을 Authorization 헤더에 포함
 - Mock 모드는 제거됨 — `mock.ts` 파일 삭제 완료
 
+#### 자동 토큰 재발급 (401 인터셉터)
+- 401 응답 감지 시 `localStorage`의 `refreshToken`으로 `POST /api/auth/refresh` 호출
+- 백엔드는 `{ token }` (accessToken만) 반환 — refreshToken은 재발급 없이 기존 값 유지
+- 성공 시 `setAccessToken(newToken)`으로 accessToken만 교체 후 원래 요청 재시도
+- 동시 다발 401: `isRefreshing` 플래그 + `failedQueue` 패턴으로 refresh는 1회만 실행, 대기 요청들은 큐에 쌓였다가 새 token으로 일괄 재시도
+- refresh 자체 실패 또는 refreshToken 없음 → `processQueue(error)` 후 `logout()`
+- 무한루프 방지: `/api/auth/refresh` URL 포함 요청 및 `_retry` 플래그 세팅된 요청은 인터셉터 통과 안 함
+
 ### WebSocket / STOMP
 - SockJS 제거됨 — 프론트엔드/백엔드 양쪽 모두 native WebSocket으로 통일
   - **프론트엔드**: `sockjs-client` 패키지 제거, `@stomp/stompjs`의 `brokerURL`로 native WebSocket 사용 (`VITE_WS_BASE_URL`)
@@ -134,8 +142,10 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ## 스토어 (Zustand)
 
 ### authStore
-- `token: string | null`, `user: User | null` — localStorage에 저장
-- `setAuth(token, user)`, `logout()`, `isAuthenticated()`
+- `token: string | null`, `refreshToken: string | null`, `user: User | null` — localStorage에 저장
+- `setAuth(token, refreshToken, user)` — 로그인/회원가입 시 전체 인증 정보 저장
+- `setAccessToken(token)` — accessToken만 교체 (refresh 성공 시 사용, refreshToken/user 유지)
+- `logout()`, `isAuthenticated()`
 
 ### workspaceStore
 - `workspaces`, `currentWorkspace`, `channels`, `currentChannelId`
@@ -231,8 +241,10 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 | 메서드 | 엔드포인트 | 설명 |
 |---|---|---|
-| POST | `/api/auth/login` | 로그인, `{ token, userId, email, name }` 반환 |
+| POST | `/api/auth/login` | 로그인, `{ token, refreshToken, userId, email, name }` 반환 |
 | POST | `/api/auth/signup` | 회원가입, 동일 형식 반환 |
+| POST | `/api/auth/refresh` | body: `{ refreshToken }` → 새 accessToken 재발급, `{ token }` 반환 |
+| POST | `/api/auth/logout` | body: `{ refreshToken }` → 로그아웃, Redis에서 토큰 삭제 |
 | GET | `/api/workspaces` | 사용자 워크스페이스 목록 |
 | POST | `/api/workspaces` | 워크스페이스 생성 |
 | GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ name, email, role }]` 반환 |

@@ -12,19 +12,27 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { logoutApi } from '../api/auth';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useThemeStore } from '../stores/themeStore';
 
 export default function TopNavBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, refreshToken, logout } = useAuthStore();
   const { currentWorkspace, workspaces } = useWorkspaceStore();
   const { theme, toggleTheme } = useThemeStore();
 
   const isWorkspacePage = location.pathname === '/workspaces';
 
-  function handleLogout() {
+  async function handleLogout() {
+    if (refreshToken) {
+      try {
+        await logoutApi(refreshToken);
+      } catch {
+        // 서버 오류와 무관하게 로컬 로그아웃 진행
+      }
+    }
     logout();
     navigate('/');
   }

@@ -18,8 +18,8 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await login(email, password);
-      setAuth(token, user);
+      const { token, refreshToken, user } = await login(email, password);
+      setAuth(token, refreshToken, user);
       navigate('/workspaces');
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
