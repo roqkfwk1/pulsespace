@@ -73,7 +73,5 @@ jobs:
             export $(sudo cat /etc/pulsespace/.env | xargs)
             sudo pkill -f pulsespace || true
             sleep 2
-            sudo nohup java -jar /home/ubuntu/pulsespace/*.jar \
-              > /home/ubuntu/pulsespace/app.log 2>&1 &
-            disown
+            sudo bash -c 'nohup java -jar /home/ubuntu/pulsespace/*.jar > /home/ubuntu/pulsespace/app.log 2>&1 & disown'
             echo "배포 완료"
