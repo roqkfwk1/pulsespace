@@ -1,0 +1,77 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # JDK 21 설치
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 백엔드 빌드 (테스트 제외)
+      - name: Build backend
+        working-directory: backend
+        run: |
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      # Node.js 설치
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # 프론트엔드 빌드
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # EC2에 백엔드 jar 전송 (plain jar 제외)
+      - name: Copy backend jar
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "backend/build/libs/*[^plain].jar"
+          target: "/home/ubuntu/pulsespace"
+          strip_components: 3
+
+      # EC2에 프론트엔드 빌드 결과물 전송
+      - name: Copy frontend dist
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "frontend/dist/*"
+          target: "/var/www/pulsespace"
+          strip_components: 2
+
+      # EC2에서 애플리케이션 재시작
+      - name: Start application
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export $(sudo cat /etc/pulsespace/.env | xargs)
+            sudo pkill -f pulsespace || true
+            sleep 2
+            sudo bash -c 'nohup java -jar /home/ubuntu/pulsespace/*.jar > /home/ubuntu/pulsespace/app.log 2>&1 & disown'
+            echo "배포 완료"
