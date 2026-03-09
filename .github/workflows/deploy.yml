@@ -70,9 +70,10 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            export $(cat /etc/pulsespace/.env | xargs)
-            pkill -f pulsespace || true
+            export $(sudo cat /etc/pulsespace/.env | xargs)
+            sudo pkill -f pulsespace || true
             sleep 2
-            nohup java -jar /home/ubuntu/pulsespace/*[^plain].jar \
+            sudo nohup java -jar /home/ubuntu/pulsespace/*.jar \
               > /home/ubuntu/pulsespace/app.log 2>&1 &
+            disown
             echo "배포 완료"
