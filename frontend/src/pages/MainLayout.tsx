@@ -25,6 +25,7 @@ export default function MainLayout() {
     openTab,
     openTabs,
     clearTabs,
+    goHome,
   } = useWorkspaceStore();
   const { send } = useWebSocket();
   const [showMembers, setShowMembers] = useState(false);
@@ -36,6 +37,12 @@ export default function MainLayout() {
     clearTabs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId]);
+
+  // 채널 없이 워크스페이스 홈으로 이동 시 현재 채널 해제
+  useEffect(() => {
+    if (!chId) goHome();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chId]);
 
   // Set workspace + workspace list
   useEffect(() => {
@@ -121,13 +128,13 @@ export default function MainLayout() {
 
         {/* Members panel */}
         <AnimatePresence>
-          {showMembers && (
+          {(showMembers || !currentChannelId) && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 288, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="hidden md:block overflow-hidden"
+              className="hidden md:block overflow-hidden h-full"
             >
               <MemberPanel />
             </motion.div>

@@ -1,20 +1,19 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
-import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2, UserPlus, Trash2 } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2, Trash2 } from 'lucide-react';
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { createChannel, getChannels, deleteChannel } from '../api/channel';
 import { getWorkspaceMyRole } from '../api/workspace';
 import type { Channel } from '../types';
 import Modal from './Modal';
-import InviteWorkspaceMemberModal from './InviteWorkspaceMemberModal';
 
 export default function ChannelSidebar() {
   const { wsId } = useParams<{ wsId: string }>();
-  const { channels, openTabs, openTab, setChannels, currentWorkspace, removeChannel } = useWorkspaceStore();
+  const navigate = useNavigate();
+  const { channels, openTabs, openTab, setChannels, currentWorkspace, removeChannel, goHome } = useWorkspaceStore();
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showWsInvite, setShowWsInvite] = useState(false);
   const [wsRole, setWsRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null);
 
@@ -70,14 +69,41 @@ export default function ChannelSidebar() {
   }
 
   const workspaceId = wsId ? Number(wsId) : null;
-  const canInvite = wsRole === 'OWNER' || wsRole === 'ADMIN';
   const canDeleteChannel = wsRole === 'OWNER' || wsRole === 'ADMIN';
+
+  function handleGoHome() {
+    goHome();
+    if (wsId) navigate(`/workspaces/${wsId}`);
+  }
 
   return (
     <aside className="w-60 bg-surface border-r border-line flex flex-col shrink-0 h-full">
-      {/* Search + Invite */}
-      <div className="p-3 flex items-center gap-2">
-        <div className="relative flex-1">
+      {/* Workspace header: 전체 클릭 시 홈으로 이동 */}
+      {currentWorkspace && (
+        <button
+          onClick={handleGoHome}
+          className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-elevated transition-colors border-b border-line shrink-0 text-left w-full"
+          title="워크스페이스 홈으로"
+        >
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: `linear-gradient(135deg, ${currentWorkspace.colorStart ?? '#14b8a6'}, ${currentWorkspace.colorEnd ?? '#06b6d4'})`,
+            }}
+          >
+            {currentWorkspace.icon ? (
+              <span className="text-sm leading-none">{currentWorkspace.icon}</span>
+            ) : (
+              <span className="text-xs font-bold text-white">{currentWorkspace.name.charAt(0)}</span>
+            )}
+          </div>
+          <span className="text-sm font-semibold text-primary truncate">{currentWorkspace.name}</span>
+        </button>
+      )}
+
+      {/* Search */}
+      <div className="p-3">
+        <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
           <input
             type="text"
@@ -87,15 +113,6 @@ export default function ChannelSidebar() {
             className="w-full pl-8 pr-3 py-1.5 bg-base text-primary placeholder:text-muted rounded-lg text-sm outline-none border border-line focus:border-accent transition-colors"
           />
         </div>
-        {canInvite && (
-          <button
-            onClick={() => setShowWsInvite(true)}
-            className="p-1.5 text-secondary hover:text-accent hover:bg-accent-light rounded-lg transition-colors shrink-0"
-            title="워크스페이스에 멤버 초대"
-          >
-            <UserPlus className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
       {/* Frequent channels (AI recommended) */}
@@ -166,16 +183,6 @@ export default function ChannelSidebar() {
           onClose={() => setShowCreateModal(false)}
           workspaceId={workspaceId}
           onCreated={handleChannelCreated}
-        />
-      )}
-
-      {/* Workspace Invite Modal */}
-      {workspaceId && currentWorkspace && (
-        <InviteWorkspaceMemberModal
-          isOpen={showWsInvite}
-          onClose={() => setShowWsInvite(false)}
-          workspaceId={workspaceId}
-          workspaceName={currentWorkspace.name}
         />
       )}
 

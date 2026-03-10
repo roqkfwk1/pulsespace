@@ -24,6 +24,7 @@ interface WorkspaceState {
   setActiveTab: (channelId: number) => void;
   reorderTabs: (tabs: OpenTab[]) => void;
   clearTabs: () => void;
+  goHome: () => void;
 
   // Delete actions
   removeWorkspace: (workspaceId: number) => void;
@@ -120,6 +121,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   clearTabs: () => {
     set({ openTabs: [], activeTabChannelId: null, currentChannelId: null });
+  },
+
+  goHome: () => {
+    set({ activeTabChannelId: null, currentChannelId: null });
   },
 
   removeWorkspace: (workspaceId) =>

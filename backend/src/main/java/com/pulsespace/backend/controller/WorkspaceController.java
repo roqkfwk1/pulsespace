@@ -4,6 +4,7 @@ import com.pulsespace.backend.domain.workspace.Workspace;
 import com.pulsespace.backend.domain.workspace.WorkspaceMember;
 import com.pulsespace.backend.dto.request.AddMemberRequest;
 import com.pulsespace.backend.dto.request.CreateWorkspaceRequest;
+import com.pulsespace.backend.dto.request.UpdateMemberRole;
 import com.pulsespace.backend.dto.response.ChannelResponse;
 import com.pulsespace.backend.dto.response.WorkspaceMemberResponse;
 import com.pulsespace.backend.dto.response.WorkspaceResponse;
@@ -105,5 +106,18 @@ public class WorkspaceController {
         List<ChannelResponse> response = channelService.getWorkspaceChannels(userId, workspaceId);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 워크스페이스 멤버 권한 수정
+     */
+    @PatchMapping("/{workspaceId}/members/{userId}/role")
+    public ResponseEntity<Void> updateMemberRole(
+            @PathVariable Long workspaceId,
+            @PathVariable Long userId,
+            @RequestBody UpdateMemberRole request,
+            @AuthenticationPrincipal Long requesterId) {
+        workspaceService.updateMemberRole(workspaceId, userId, request.getRole(), requesterId);
+        return ResponseEntity.ok().build();
     }
 }

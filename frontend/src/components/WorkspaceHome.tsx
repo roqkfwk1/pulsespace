@@ -2,16 +2,20 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Hash, UserPlus } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
+import { useAuthStore } from '../stores/authStore';
 import { getWorkspaceMyRole, getWorkspaceMembers } from '../api/workspace';
 import { getChannels } from '../api/channel';
 import InviteWorkspaceMemberModal from './InviteWorkspaceMemberModal';
+import WorkspaceMemberManageModal from './WorkspaceMemberManageModal';
 
 export default function WorkspaceHome() {
   const { currentWorkspace } = useWorkspaceStore();
+  const { user } = useAuthStore();
   const [role, setRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [channelCount, setChannelCount] = useState<number | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  const [showMembersManage, setShowMembersManage] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspace) return;
@@ -56,10 +60,13 @@ export default function WorkspaceHome() {
 
         {/* Stats */}
         <div className="flex items-center justify-center gap-8 mb-8 text-muted">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMembersManage(true)}
+            className="flex items-center gap-2 hover:text-accent transition-colors"
+          >
             <Users className="w-4 h-4" />
             <span className="text-sm">{memberCount ?? '...'}명</span>
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             <Hash className="w-4 h-4" />
             <span className="text-sm">{channelCount ?? '...'}개 채널</span>
@@ -85,6 +92,14 @@ export default function WorkspaceHome() {
         workspaceId={currentWorkspace.id}
         workspaceName={currentWorkspace.name}
       />
+
+      {showMembersManage && user && (
+        <WorkspaceMemberManageModal
+          workspaceId={currentWorkspace.id}
+          currentUserId={user.id}
+          onClose={() => setShowMembersManage(false)}
+        />
+      )}
     </div>
   );
 }

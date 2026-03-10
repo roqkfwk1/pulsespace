@@ -49,9 +49,12 @@ export interface Message {
 }
 
 export interface WorkspaceMember {
+  id: number;
+  userId: number;
   name: string;
   email: string;
   role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  joinedAt: string;
 }
 
 export type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING';
