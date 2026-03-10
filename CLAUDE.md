@@ -11,6 +11,8 @@
 
 PulseSpace는 탭 기반 멀티채널 내비게이션을 갖춘 Slack 스타일 사내 메신저 웹 앱입니다. React + TypeScript 프론트엔드에 Vite를 사용합니다. 백엔드(Spring Boot)는 별도로 개발 중이며, 프론트엔드는 실제 REST API와 WebSocket 연동을 위한 코드로 구성되어 있습니다.
 
+운영 도메인: **https://www.pulsespace.kr**
+
 ## 명령어
 
 모든 명령어는 `frontend/` 디렉토리에서 실행합니다:
@@ -46,22 +48,23 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ├──────────┬────────────────────────┬─────────────┤
 │ Channel  │ ChatWindow (flex-1)    │ MemberPanel │
 │ Sidebar  │  또는 WorkspaceHome    │ (w-72,      │
-│ (w-60)   │  (채널 미선택 시)      │  애니메이션   │
-│          │                        │  토글)       │
+│ (w-60)   │  (채널 미선택 시)      │  항상 표시)  │
 └──────────┴────────────────────────┴─────────────┘
 ```
 
-- **TopNavBar** — 워크스페이스 드롭다운 전환기 (Headless UI Menu), 검색 플레이스홀더 (`⌘K`), 알림 벨 + 펄스 배지, 다크/라이트 토글, 프로필 메뉴 + 로그아웃
-- **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, 닫기 버튼, "+" 탭 추가 버튼
-- **ChannelSidebar** — "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 검색 필터, 이모지/해시 아이콘 + 읽지 않은 배지, 워크스페이스 초대 버튼 (OWNER/ADMIN만 표시), 채널 삭제 버튼 (OWNER/ADMIN만, 호버 시 표시)
+- **TopNavBar** — 워크스페이스 아이콘+이름+∨ 전체 클릭 시 드롭다운 전환기 (Headless UI Menu), 검색 플레이스홀더 (`⌘K`), 알림 벨 + 펄스 배지, 다크/라이트 토글, 프로필 메뉴 + 로그아웃. pulsespace 로고(∨ 없을 때) 클릭 시 `/workspaces`로 이동
+- **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, X 닫기 버튼(항상 표시), "+" 탭 추가 버튼
+- **ChannelSidebar** — 상단에 워크스페이스 이름 헤더(클릭 시 `goHome()` + 워크스페이스 홈 이동), 채널 검색 필터, "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 이모지/해시 아이콘 + 읽지 않은 배지, 채널 삭제 버튼 (OWNER/ADMIN만, 호버 시 표시)
 - **WorkspaceHome** — 채널 미선택 시 표시되는 홈 화면. 워크스페이스 이름·설명·멤버 수·채널 수 표시. 멤버 수는 `/api/workspaces/{id}/members` 실시간 조회. 초대 버튼은 OWNER/ADMIN만 표시
 - **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장·이모지 / 본인 메시지는 `...` 드롭다운으로 수정·삭제), 인라인 메시지 편집, 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
-- **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨 (소유자/관리자/멤버), AnimatePresence 애니메이션 토글
-- **InviteWorkspaceMemberModal** — 워크스페이스 멤버 초대 공유 모달 (WorkspaceHome · ChannelSidebar에서 사용)
+- **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨. WorkspaceHome일 때 항상 표시, ChatWindow일 때 헤더 버튼으로 토글. OWNER만 ⚙ 버튼 표시 → WorkspaceMemberManageModal 열기. 모달 닫기 시 멤버 목록 자동 재조회
+- **WorkspaceMemberManageModal** — OWNER 전용 멤버 권한 관리 모달. 자신·OWNER 제외한 멤버에 ADMIN/MEMBER 드롭다운 표시. 변경사항 일괄 저장(pendingRoles) → API 호출 → 멤버 목록 재조회 → 모달 자동 닫기
+- **InviteWorkspaceMemberModal** — 워크스페이스 멤버 초대 공유 모달 (WorkspaceHome에서 사용)
 
 ### 권한 체크
-- **워크스페이스 초대**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 초대 버튼 표시 (WorkspaceHome, ChannelSidebar)
+- **워크스페이스 초대**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 초대 버튼 표시 (WorkspaceHome)
 - **워크스페이스 삭제**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER이면 삭제 버튼 표시 (WorkspaceSelectPage, 카드 호버 시)
+- **워크스페이스 멤버 권한 관리**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER이면 MemberPanel 상단 ⚙ 버튼 표시 → WorkspaceMemberManageModal 오픈
 - **채널 초대**: `GET /api/channels/{channelId}/my-role` → OWNER이면 초대 버튼 표시. 403(비멤버)이면 버튼 숨김 (ChatWindow)
 - **채널 삭제**: `GET /api/workspaces/{workspaceId}/my-role` → OWNER 또는 ADMIN이면 삭제 버튼 표시 (ChannelSidebar, 호버 시)
 
@@ -70,15 +73,25 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 #### 워크스페이스 홈 화면
 - `/workspaces/:wsId` 접속 시 채널 자동 선택 없이 홈 화면 표시
 - 워크스페이스 전환 시 기존 탭 전체 초기화 (`clearTabs()`)
-- `clearTabs()`는 MainLayout에서 `wsId` 변경을 감지해 호출 (WorkspaceSelectPage, TopNavBar 전환 모두 처리)
+- `clearTabs()`는 MainLayout에서 `wsId` 변경을 감지해 호출
+- ChannelSidebar 상단 워크스페이스 이름 클릭 → `goHome()` + `navigate('/workspaces/:wsId')` → 탭 유지하며 채팅창만 닫고 홈 이동
+- `chId` URL 파라미터가 사라지면 MainLayout에서 `goHome()` 자동 호출
 
 #### 탭 기반 멀티채널
 - 브라우저 탭처럼 여러 채널을 동시에 열기
 - framer-motion `Reorder`로 드래그 재정렬
 - 활성 탭 애니메이션 그라디언트 인디케이터 (`layoutId` 스프링 애니메이션)
 - 탭 닫기 시 인접한 탭으로 자동 전환
+- X 닫기 버튼 항상 표시 (hover 불필요)
 - "+" 버튼으로 사이드바 포커스하여 채널 선택
 - 탭 상태는 `workspaceStore`에서 관리 (openTabs, activeTabChannelId)
+
+#### 워크스페이스 멤버 관리
+- MemberPanel 상단 ⚙ 버튼 (OWNER만) → WorkspaceMemberManageModal
+- 멤버 목록 + 역할 표시. 자신·OWNER 제외한 멤버에 ADMIN/MEMBER 드롭다운
+- pendingRoles(Map) 방식으로 변경사항 일괄 관리 → 저장 버튼 클릭 시 변경된 멤버만 `PATCH /api/workspaces/{id}/members/{userId}/role` 호출
+- 저장 성공 → `getWorkspaceMembers()` 재조회 → 모달 자동 닫기
+- 모달 닫기 시 MemberPanel도 멤버 목록 자동 재조회
 
 #### 인라인 답장
 - 메시지 호버 시 답장/이모지 액션 버튼 표시 (본인 메시지는 `...` 드롭다운 추가)
@@ -98,6 +111,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `Channel.unreadCount` — 읽지 않은 메시지 수. ChannelSidebar + ChannelTabBar에서 빨간 숫자 배지 표시
 - `Workspace.hasUnread` — 워크스페이스 내 읽지 않은 메시지 여부. WorkspaceSelectPage 카드 아이콘에 빨간 점 표시
 - 탭 열기 시 `openTab()`에서 해당 채널의 `hasUnread`를 즉시 `false`로 초기화 (낙관적 업데이트)
+- **버그 수정**: 메시지 없는 채널의 unread 표시 오류 수정, 채널 멤버가 아닌 경우 unread 표시 오류 수정
 
 #### 워크스페이스/채널 삭제
 - **워크스페이스 삭제**: WorkspaceSelectPage 카드 호버 시 삭제 버튼 (OWNER만). 확인 모달 → `DELETE /api/workspaces/{id}` → 목록에서 제거
@@ -155,6 +169,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `setActiveTab(channelId)` — 활성 탭 + currentChannelId 전환
 - `reorderTabs(tabs)` — 드래그 재정렬
 - `clearTabs()` — 탭 전체 초기화 (워크스페이스 전환 시 호출)
+- `goHome()` — 탭은 유지하고 `currentChannelId`·`activeTabChannelId`만 null로 초기화 (워크스페이스 홈 이동 시 호출)
 - `updateChannelUnread(channelId, count)`, `updateChannelHasUnread(channelId, bool)`, `updateChannelLatestMessage(channelId, msg, timestamp)`
 - `removeWorkspace(workspaceId)` — 워크스페이스 삭제 (currentWorkspace도 초기화)
 - `removeChannel(channelId)` — 채널 삭제 (탭 닫기 포함)
@@ -177,7 +192,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon?, hasUnread? }`
 - `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon?, hasUnread? }`
 - `Message { id, channelId, senderId, senderName, content, createdAt, type?, editedAt?, deletedAt?, isDeleted?, replyToId?, replyToSenderName?, replyToContent? }`
-- `WorkspaceMember { name, email, role: 'OWNER'|'ADMIN'|'MEMBER' }`
+- `WorkspaceMember { id, userId, name, email, role: 'OWNER'|'ADMIN'|'MEMBER', joinedAt }` — 리스트 렌더링 key는 `userId` 사용
 - `OpenTab { channelId, channelName, color, icon }`
 - `ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'`
 
@@ -224,8 +239,8 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 ## 환경 변수
 
 `frontend/.env`에 정의:
-- `VITE_API_BASE_URL` — REST API 기본 URL (기본값: `http://localhost:8080`)
-- `VITE_WS_BASE_URL` — WebSocket 엔드포인트 (기본값: `ws://localhost:8080/ws`)
+- `VITE_API_BASE_URL` — REST API 기본 URL (로컬: `http://localhost:8080`, 운영: `https://www.pulsespace.kr`)
+- `VITE_WS_BASE_URL` — WebSocket 엔드포인트 (로컬: `ws://localhost:8080/ws`, 운영: `wss://www.pulsespace.kr/ws`)
 
 ## 주요 컨벤션
 
@@ -247,8 +262,9 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 | POST | `/api/auth/logout` | body: `{ refreshToken }` → 로그아웃, Redis에서 토큰 삭제 |
 | GET | `/api/workspaces` | 사용자 워크스페이스 목록 |
 | POST | `/api/workspaces` | 워크스페이스 생성 |
-| GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ name, email, role }]` 반환 |
+| GET | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 목록, `[{ id, userId, name, email, role, joinedAt }]` 반환 |
 | POST | `/api/workspaces/{workspaceId}/members` | 워크스페이스 멤버 초대 |
+| PATCH | `/api/workspaces/{workspaceId}/members/{userId}/role` | 멤버 권한 변경 (body: `{ role: 'ADMIN'|'MEMBER' }`), OWNER만 가능 |
 | GET | `/api/workspaces/{workspaceId}/my-role` | 내 워크스페이스 역할 조회, `{ role: 'OWNER'|'ADMIN'|'MEMBER' }` 반환 |
 | GET | `/api/workspaces/{workspaceId}/channels` | 워크스페이스 내 채널 목록 |
 | DELETE | `/api/workspaces/{workspaceId}` | 워크스페이스 삭제 (OWNER만) |

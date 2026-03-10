@@ -40,6 +40,18 @@ export async function getWorkspaceMyRole(workspaceId: number): Promise<'OWNER' |
   return res.data.role ?? res.data;
 }
 
+export async function updateMemberRole(
+  workspaceId: number,
+  userId: number,
+  role: 'ADMIN' | 'MEMBER'
+): Promise<void> {
+  await axios.patch(
+    `${BASE}/api/workspaces/${workspaceId}/members/${userId}/role`,
+    { role },
+    { headers: authHeaders() }
+  );
+}
+
 export async function deleteWorkspace(workspaceId: number): Promise<void> {
   await axios.delete(`${BASE}/api/workspaces/${workspaceId}`, {
     headers: authHeaders(),

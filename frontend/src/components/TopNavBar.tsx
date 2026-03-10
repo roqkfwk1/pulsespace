@@ -48,9 +48,10 @@ export default function TopNavBar() {
         <div className="flex items-center gap-2">
           {currentWorkspace && !isWorkspacePage ? (
             <Menu as="div" className="relative">
+              {/* 전체 영역 클릭 시 워크스페이스 전환 드롭다운 */}
               <MenuButton className="flex items-center gap-2 px-2 py-1.5 hover:bg-elevated rounded-lg transition-colors">
                 <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-base"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
                   style={{
                     background: `linear-gradient(135deg, ${currentWorkspace.colorStart ?? '#14b8a6'}, ${currentWorkspace.colorEnd ?? '#06b6d4'})`,
                   }}
@@ -68,63 +69,66 @@ export default function TopNavBar() {
               </MenuButton>
 
               <Transition
-                as={Fragment}
-                enter="transition ease-out duration-150"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-100"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <MenuItems className="absolute left-0 mt-1 w-60 bg-surface rounded-xl border border-line shadow-lg p-1.5 z-50 outline-none">
-                  {workspaces.map((ws) => (
-                    <MenuItem key={ws.id}>
-                      <button
-                        onClick={() => switchWorkspace(ws.id)}
-                        className="w-full text-left px-3 py-2 rounded-lg text-sm text-secondary data-[focus]:bg-accent-light data-[focus]:text-accent transition-colors flex items-center gap-2.5"
-                      >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                          style={{
-                            background: `linear-gradient(135deg, ${ws.colorStart ?? '#14b8a6'}, ${ws.colorEnd ?? '#06b6d4'})`,
-                          }}
+                  as={Fragment}
+                  enter="transition ease-out duration-150"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-100"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <MenuItems className="absolute left-0 mt-1 w-60 bg-surface rounded-xl border border-line shadow-lg p-1.5 z-50 outline-none">
+                    {workspaces.map((ws) => (
+                      <MenuItem key={ws.id}>
+                        <button
+                          onClick={() => switchWorkspace(ws.id)}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm text-secondary data-[focus]:bg-accent-light data-[focus]:text-accent transition-colors flex items-center gap-2.5"
                         >
-                          {ws.icon ? (
-                            <span className="text-sm">{ws.icon}</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-white">{ws.name.charAt(0)}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{ws.name}</p>
-                          {ws.description && (
-                            <p className="text-[11px] text-muted truncate">{ws.description}</p>
-                          )}
-                        </div>
+                          <div
+                            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{
+                              background: `linear-gradient(135deg, ${ws.colorStart ?? '#14b8a6'}, ${ws.colorEnd ?? '#06b6d4'})`,
+                            }}
+                          >
+                            {ws.icon ? (
+                              <span className="text-sm">{ws.icon}</span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-white">{ws.name.charAt(0)}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{ws.name}</p>
+                            {ws.description && (
+                              <p className="text-[11px] text-muted truncate">{ws.description}</p>
+                            )}
+                          </div>
+                        </button>
+                      </MenuItem>
+                    ))}
+                    <div className="border-t border-line my-1" />
+                    <MenuItem>
+                      <button
+                        onClick={() => navigate('/workspaces')}
+                        className="w-full text-left px-3 py-2 rounded-lg text-sm text-muted data-[focus]:bg-elevated transition-colors"
+                      >
+                        모든 워크스페이스 보기
                       </button>
                     </MenuItem>
-                  ))}
-                  <div className="border-t border-line my-1" />
-                  <MenuItem>
-                    <button
-                      onClick={() => navigate('/workspaces')}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-muted data-[focus]:bg-elevated transition-colors"
-                    >
-                      모든 워크스페이스 보기
-                    </button>
-                  </MenuItem>
-                </MenuItems>
-              </Transition>
+                  </MenuItems>
+                </Transition>
             </Menu>
           ) : (
-            <div className="flex items-center gap-2 px-1">
+            <button
+              onClick={() => navigate('/workspaces')}
+              className="flex items-center gap-2 px-1 hover:opacity-80 transition-opacity"
+            >
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-sm bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
                 pulsespace
               </span>
-            </div>
+            </button>
           )}
         </div>
 

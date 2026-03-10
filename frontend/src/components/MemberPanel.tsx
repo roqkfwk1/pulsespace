@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Settings } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
-import { getWorkspaceMembers } from '../api/workspace';
+import { useAuthStore } from '../stores/authStore';
+import { getWorkspaceMembers, getWorkspaceMyRole } from '../api/workspace';
 import type { WorkspaceMember } from '../types';
+import WorkspaceMemberManageModal from './WorkspaceMemberManageModal';
 
 const ROLE_LABEL: Record<WorkspaceMember['role'], string> = {
   OWNER: '소유자',
@@ -17,27 +20,49 @@ const AVATAR_GRADIENT: Record<WorkspaceMember['role'], string> = {
 
 export default function MemberPanel() {
   const { currentWorkspace } = useWorkspaceStore();
+  const { user } = useAuthStore();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [myRole, setMyRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
+  const [showManage, setShowManage] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspace) return;
     let cancelled = false;
-    getWorkspaceMembers(currentWorkspace.id).then((m) => { if (!cancelled) setMembers(m); }).catch(() => { if (!cancelled) setMembers([]); });
+    const id = currentWorkspace.id;
+
+    getWorkspaceMembers(id)
+      .then((m) => { if (!cancelled) setMembers(m); })
+      .catch(() => { if (!cancelled) setMembers([]); });
+
+    getWorkspaceMyRole(id)
+      .then((role) => { if (!cancelled) setMyRole(role); })
+      .catch(() => { if (!cancelled) setMyRole(null); });
+
     return () => { cancelled = true; };
   }, [currentWorkspace]);
 
   return (
-    <aside className="w-72 bg-surface border-l border-line flex flex-col shrink-0">
-      <div className="h-12 px-4 flex items-center border-b border-line">
+    <aside className="w-72 bg-surface border-l border-line flex flex-col shrink-0 h-full">
+      <div className="h-12 px-4 flex items-center justify-between border-b border-line">
         <h3 className="text-primary font-semibold text-sm">
           멤버 <span className="text-muted font-normal">({members.length})</span>
         </h3>
+        {myRole === 'OWNER' && (
+          <button
+            onClick={() => setShowManage(true)}
+            className="p-1.5 text-muted hover:text-primary hover:bg-elevated rounded-lg transition-colors"
+            title="멤버 관리"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        )}
       </div>
+
       <div className="flex-1 overflow-y-auto p-2">
         {members.map((m) => (
           <div
-            key={m.email}
-            className="flex items-center gap-3 py-2 px-2.5 rounded-lg hover:bg-elevated transition-colors cursor-pointer"
+            key={m.userId}
+            className="flex items-center gap-3 py-2 px-2.5 rounded-lg hover:bg-elevated transition-colors"
           >
             <div className="relative shrink-0">
               <div
@@ -54,6 +79,19 @@ export default function MemberPanel() {
           </div>
         ))}
       </div>
+
+      {showManage && currentWorkspace && user && (
+        <WorkspaceMemberManageModal
+          workspaceId={currentWorkspace.id}
+          currentUserId={user.id}
+          onClose={() => {
+            setShowManage(false);
+            getWorkspaceMembers(currentWorkspace.id)
+              .then(setMembers)
+              .catch(() => {});
+          }}
+        />
+      )}
     </aside>
   );
 }

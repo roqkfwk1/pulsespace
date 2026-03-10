@@ -25,7 +25,6 @@ export default function ChannelTabBar({ onAddTab }: Props) {
             tab={tab}
             isActive={activeTabChannelId === tab.channelId}
             unread={channels.find((c) => c.id === tab.channelId)?.unreadCount ?? 0}
-            canClose={openTabs.length > 1}
             onActivate={() => setActiveTab(tab.channelId)}
             onClose={() => closeTab(tab.channelId)}
           />
@@ -48,14 +47,12 @@ function TabItem({
   tab,
   isActive,
   unread,
-  canClose,
   onActivate,
   onClose,
 }: {
   tab: OpenTab;
   isActive: boolean;
   unread: number;
-  canClose: boolean;
   onActivate: () => void;
   onClose: () => void;
 }) {
@@ -109,17 +106,16 @@ function TabItem({
         )}
 
         {/* Close button */}
-        {canClose && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-line rounded transition-opacity shrink-0 ml-0.5"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="p-0.5 hover:bg-line rounded transition-colors shrink-0 ml-0.5"
+          title="탭 닫기"
+        >
+          <X className="w-3 h-3" />
+        </button>
       </motion.div>
     </Reorder.Item>
   );
