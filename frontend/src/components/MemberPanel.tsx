@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useAuthStore } from '../stores/authStore';
 import { getWorkspaceMembers, getWorkspaceMyRole } from '../api/workspace';
+import { getChannelMembers } from '../api/channel';
 import type { WorkspaceMember } from '../types';
 import WorkspaceMemberManageModal from './WorkspaceMemberManageModal';
 
@@ -19,35 +20,43 @@ const AVATAR_GRADIENT: Record<WorkspaceMember['role'], string> = {
 };
 
 export default function MemberPanel() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, currentChannelId } = useWorkspaceStore();
   const { user } = useAuthStore();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [myRole, setMyRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
   const [showManage, setShowManage] = useState(false);
 
+  const isChannelView = currentChannelId !== null;
+
   useEffect(() => {
     if (!currentWorkspace) return;
     let cancelled = false;
-    const id = currentWorkspace.id;
 
-    getWorkspaceMembers(id)
-      .then((m) => { if (!cancelled) setMembers(m); })
-      .catch(() => { if (!cancelled) setMembers([]); });
+    if (isChannelView && currentChannelId) {
+      getChannelMembers(currentChannelId)
+        .then((m) => { if (!cancelled) setMembers(m); })
+        .catch(() => { if (!cancelled) setMembers([]); });
+    } else {
+      getWorkspaceMembers(currentWorkspace.id)
+        .then((m) => { if (!cancelled) setMembers(m); })
+        .catch(() => { if (!cancelled) setMembers([]); });
+    }
 
-    getWorkspaceMyRole(id)
+    getWorkspaceMyRole(currentWorkspace.id)
       .then((role) => { if (!cancelled) setMyRole(role); })
       .catch(() => { if (!cancelled) setMyRole(null); });
 
     return () => { cancelled = true; };
-  }, [currentWorkspace]);
+  }, [currentWorkspace, currentChannelId, isChannelView]);
 
   return (
     <aside className="w-72 bg-surface border-l border-line flex flex-col shrink-0 h-full">
       <div className="h-12 px-4 flex items-center justify-between border-b border-line">
         <h3 className="text-primary font-semibold text-sm">
-          멤버 <span className="text-muted font-normal">({members.length})</span>
+          {isChannelView ? '채널 멤버' : '멤버'}{' '}
+          <span className="text-muted font-normal">({members.length})</span>
         </h3>
-        {myRole === 'OWNER' && (
+        {!isChannelView && myRole === 'OWNER' && (
           <button
             onClick={() => setShowManage(true)}
             className="p-1.5 text-muted hover:text-primary hover:bg-elevated rounded-lg transition-colors"

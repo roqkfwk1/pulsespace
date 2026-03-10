@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { authHeaders } from './auth';
-import type { Channel, Message } from '../types';
+import type { Channel, Message, WorkspaceMember } from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -76,6 +76,13 @@ export async function deleteChannel(channelId: number): Promise<void> {
   await axios.delete(`${BASE}/api/channels/${channelId}`, {
     headers: authHeaders(),
   });
+}
+
+export async function getChannelMembers(channelId: number): Promise<WorkspaceMember[]> {
+  const res = await axios.get(`${BASE}/api/channels/${channelId}/members`, {
+    headers: authHeaders(),
+  });
+  return res.data;
 }
 
 /** 403이면 null 반환 (채널 멤버가 아님) */
