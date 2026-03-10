@@ -14,8 +14,9 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     // 워크스페이스의 채널 조회 (PUBLIC: 전체, PRIVATE: 멤버만, 최신순)
     @Query("SELECT c, " +
-            "CASE WHEN cm.lastReadMessageId IS NULL " +
-            "OR cm.lastReadMessageId < c.lastMessageId " +
+            "CASE WHEN c.lastMessageId IS NOT NULL " +
+            "AND (cm.lastReadMessageId IS NULL " +
+            "OR cm.lastReadMessageId < c.lastMessageId) " +
             "THEN true ELSE false END " +
             "FROM Channel c " +
             "LEFT JOIN ChannelMember cm ON cm.channel.id = c.id AND cm.user.id = :userId " +
