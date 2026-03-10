@@ -8,6 +8,8 @@ export function useReadMessage(channelId: number | null) {
   const lastReadIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  // 채널 진입 후 메시지 최초 로드 시 읽음 처리 완료 여부
+  const initialReadDoneRef = useRef(false);
 
   const markRead = useCallback(() => {
     if (!channelId) return;
@@ -27,13 +29,29 @@ export function useReadMessage(channelId: number | null) {
     }, 1000);
   }, [channelId, updateChannelUnread, updateChannelHasUnread]);
 
-  // 채널 진입 시 1회 호출
+  // 채널 진입 시 1회 호출 (이 시점에 메시지가 아직 없을 수 있으므로 실패해도 무방)
   useEffect(() => {
     lastReadIdRef.current = null;
+    initialReadDoneRef.current = false;
     markRead();
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+  }, [channelId, markRead]);
+
+  // 채널 진입 후 메시지가 비동기로 로드될 때를 대비한 구독
+  // setMessages([]) → getMessages() → setMessages(msgs) 순서로 호출되므로
+  // 메시지가 처음 도착하는 시점에 초기 읽음 처리를 보장
+  useEffect(() => {
+    if (!channelId) return;
+    const unsubscribe = useChatStore.subscribe((state) => {
+      if (initialReadDoneRef.current) return;
+      if (state.messages.length > 0) {
+        initialReadDoneRef.current = true;
+        markRead();
+      }
+    });
+    return unsubscribe;
   }, [channelId, markRead]);
 
   // 스크롤 하단 IntersectionObserver — setBottomRef 안정적으로 유지
