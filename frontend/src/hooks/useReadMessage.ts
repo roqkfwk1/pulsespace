@@ -8,8 +8,6 @@ export function useReadMessage(channelId: number | null) {
   const lastReadIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  // 채널 진입 후 메시지 최초 로드 시 읽음 처리 완료 여부
-  const initialReadDoneRef = useRef(false);
 
   const markRead = useCallback(() => {
     if (!channelId) return;
@@ -32,22 +30,20 @@ export function useReadMessage(channelId: number | null) {
   // 채널 진입 시 1회 호출 (이 시점에 메시지가 아직 없을 수 있으므로 실패해도 무방)
   useEffect(() => {
     lastReadIdRef.current = null;
-    initialReadDoneRef.current = false;
     markRead();
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [channelId, markRead]);
 
-  // 채널 진입 후 메시지가 비동기로 로드될 때를 대비한 구독
-  // setMessages([]) → getMessages() → setMessages(msgs) 순서로 호출되므로
-  // 메시지가 처음 도착하는 시점에 초기 읽음 처리를 보장
+  // 메시지 배열이 바뀔 때마다 읽음 처리:
+  //   1) 채널 진입 후 getMessages() 응답이 도착할 때 (초기 로드)
+  //   2) WebSocket CREATED 이벤트로 새 메시지가 추가될 때 (전송/수신 모두)
+  // markRead() 내부의 lastReadIdRef 비교로 이미 처리한 마지막 메시지는 중복 API 호출을 하지 않음
   useEffect(() => {
     if (!channelId) return;
-    const unsubscribe = useChatStore.subscribe((state) => {
-      if (initialReadDoneRef.current) return;
-      if (state.messages.length > 0) {
-        initialReadDoneRef.current = true;
+    const unsubscribe = useChatStore.subscribe((state, prev) => {
+      if (state.messages !== prev.messages && state.messages.length > 0) {
         markRead();
       }
     });
