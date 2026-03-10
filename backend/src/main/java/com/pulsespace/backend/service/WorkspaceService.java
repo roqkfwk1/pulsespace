@@ -161,4 +161,34 @@ public class WorkspaceService {
         // 워크스페이스 삭제(관련 데이터 모두 삭제)
         workspaceRepository.delete(workspace);
     }
+
+    /**
+     * 워크스페이스 멤버 권한 수정
+     */
+    @Transactional
+    public void updateMemberRole(Long workspaceId, Long targetUserId, WorkspaceMember.MemberRole role, Long requesterId) {
+        // 요청자 권한 체크 (OWNER만 가능)
+        WorkspaceMember requester = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, requesterId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
+        if (requester.getRole() != WorkspaceMember.MemberRole.OWNER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 대상 멤버 조회
+        WorkspaceMember targetMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, targetUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_MEMBER));
+
+        // 자기 자신 변경 방지 - 본인 권한은 본인이 못 바꿈
+        if (requesterId.equals(targetUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // 소유자 양도 시 기존 소유자 관리자로 변경
+        if(role == WorkspaceMember.MemberRole.OWNER) {
+            requester.updateRole(WorkspaceMember.MemberRole.ADMIN);
+        }
+
+        // 멤버 권한 업데이트
+        targetMember.updateRole(role);
+    }
 }

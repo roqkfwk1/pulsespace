@@ -43,4 +43,8 @@ public class WorkspaceMember {
         ADMIN,   // 관리자
         MEMBER   // 일반 멤버
     }
+
+    public void updateRole(MemberRole role) {
+        this.role = role;
+    }
 }
