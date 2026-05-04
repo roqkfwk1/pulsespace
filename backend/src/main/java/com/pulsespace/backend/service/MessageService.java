@@ -72,7 +72,7 @@ public class MessageService {
 
         // cursorId 없으면 최신 50개, 있으면 cursor 이전 50개
         if (cursorId == null) {
-            return messageRepository.findTop50WithSenderByChannelId(channelId);
+            return messageRepository.findTop50WithSenderByChannelId(channelId, PageRequest.of(0, 50));
         } else {
             return messageRepository.findTop50WithSenderByChannelIdAndIdLessThan(channelId, cursorId, PageRequest.of(0, 50));
         }

@@ -15,7 +15,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     // 채널의 최신 메시지 50개 (내림차순)
     @Query("select m from Message m join fetch m.sender where m.channel.id = :channelId order by m.id desc")
-    List<Message> findTop50WithSenderByChannelId(@Param("channelId") Long channelId);
+    List<Message> findTop50WithSenderByChannelId(@Param("channelId") Long channelId, Pageable pageable);
 
     // 특정 메시지 이후의 새 메시지들 (실시간 동기화)
     List<Message> findByChannelIdAndIdGreaterThan(Long channelId, Long messageId);

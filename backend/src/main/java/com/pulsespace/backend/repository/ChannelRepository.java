@@ -14,16 +14,14 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     // 워크스페이스의 채널 조회 (PUBLIC: 전체, PRIVATE: 멤버만, 최신순)
     @Query("SELECT c, " +
-            "CASE WHEN EXISTS (" +
-            "SELECT cm FROM ChannelMember cm " +
-            "WHERE cm.channel.id = c.id AND cm.user.id = :userId " +
+            "CASE WHEN cm.id IS NOT NULL " +
             "AND c.lastMessageId IS NOT NULL " +
-            "AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId)) " +
+            "AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId) " +
             "THEN true ELSE false END " +
             "FROM Channel c " +
+            "LEFT JOIN ChannelMember cm ON cm.channel = c AND cm.user.id = :userId " +
             "WHERE c.workspace.id = :workspaceId " +
-            "AND (c.visibility = 'PUBLIC' OR EXISTS (" +
-            "SELECT cm2 FROM ChannelMember cm2 WHERE cm2.channel = c AND cm2.user.id = :userId)) " +
+            "AND (c.visibility = 'PUBLIC' OR cm.id IS NOT NULL) " +
             "ORDER BY c.createdAt DESC")
     List<Object[]> findVisibleChannelsWithUnreadByWorkspaceIdAndUserId(@Param("workspaceId") Long workspaceId, @Param("userId") Long userId);
 

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -114,13 +114,13 @@ class MessageServiceTest {
         void withoutCursor() {
             // given
             given(channelMemberRepository.existsByChannelIdAndUserId(1L, 1L)).willReturn(true);
-            given(messageRepository.findTop50WithSenderByChannelId(1L)).willReturn(List.of());
+            given(messageRepository.findTop50WithSenderByChannelId(eq(1L), any(Pageable.class))).willReturn(List.of());
 
             // when
             messageService.getChannelMessages(1L, 1L, null);
 
             // then
-            verify(messageRepository, times(1)).findTop50WithSenderByChannelId(1L);
+            verify(messageRepository, times(1)).findTop50WithSenderByChannelId(eq(1L), any(Pageable.class));
             verify(messageRepository, never()).findTop50WithSenderByChannelIdAndIdLessThan(any(), any(), any());
         }
 
@@ -130,15 +130,15 @@ class MessageServiceTest {
             // given
             given(channelMemberRepository.existsByChannelIdAndUserId(1L, 1L)).willReturn(true);
             given(messageRepository.findTop50WithSenderByChannelIdAndIdLessThan(
-                    eq(1L), eq(10L), any(PageRequest.class))).willReturn(List.of());
+                    eq(1L), eq(10L), any(Pageable.class))).willReturn(List.of());
 
             // when
             messageService.getChannelMessages(1L, 1L, 10L);
 
             // then
             verify(messageRepository, times(1))
-                    .findTop50WithSenderByChannelIdAndIdLessThan(eq(1L), eq(10L), any(PageRequest.class));
-            verify(messageRepository, never()).findTop50WithSenderByChannelId(any());
+                    .findTop50WithSenderByChannelIdAndIdLessThan(eq(1L), eq(10L), any(Pageable.class));
+            verify(messageRepository, never()).findTop50WithSenderByChannelId(any(), any(Pageable.class));
         }
 
         @Test
