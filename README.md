@@ -81,10 +81,9 @@ offset 방식은 데이터가 많아질수록 성능이 저하되므로 `id < cu
 
 ```java
 if (cursorId == null) {
-    return messageRepository.findTop50WithSenderByChannelId(channelId);
+    return messageRepository.findTop50WithSenderByChannelId(channelId, PageRequest.of(0, 50));
 } else {
-    return messageRepository.findTop50WithSenderByChannelIdAndIdLessThan(
-        channelId, cursorId, PageRequest.of(0, 50));
+    return messageRepository.findTop50WithSenderByChannelIdAndIdLessThan(channelId, cursorId, PageRequest.of(0, 50));
 }
 ```
 
@@ -104,19 +103,25 @@ systemd 서비스로 전환해 서버 재시작 시 자동으로 애플리케이
 | 조건 | 처리 방식 |
 |---|---|
 | 메시지가 없는 채널 | `lastMessageId IS NOT NULL` 조건으로 제외 |
-| 내가 멤버가 아닌 채널 | `EXISTS` 서브쿼리로 멤버 여부 확인 |
+| 내가 멤버가 아닌 채널 | `cm.id IS NOT NULL` 조건으로 제외 |
 | 읽음 여부 판단 | `lastReadMessageId < lastMessageId` 비교 |
+
+초기 LEFT JOIN 구현에서 조건 누락으로 unread 오작동이 발생했습니다.  
+이후 EXISTS 서브쿼리로 정확성을 먼저 확보했고, 5-2에서 파악한 LEFT JOIN 조건 누락 문제를 반영해  
+JOIN 조건과 WHERE 조건을 명확히 분리한 LEFT JOIN 방식으로 최종 개선했습니다.  
+자세한 내용은 트러블슈팅 5-2를 참고하세요.
 
 ```java
 @Query("SELECT c, " +
-    "CASE WHEN EXISTS (" +
-    "  SELECT cm FROM ChannelMember cm " +
-    "  WHERE cm.channel.id = c.id AND cm.user.id = :userId " +
-    "  AND c.lastMessageId IS NOT NULL " +
-    "  AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId)" +
-    ") THEN true ELSE false END " +
-    "FROM Channel c " +
-    "WHERE c.workspace.id = :workspaceId ...")
+        "CASE WHEN cm.id IS NOT NULL " +
+        "AND c.lastMessageId IS NOT NULL " +
+        "AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId) " +
+        "THEN true ELSE false END " +
+        "FROM Channel c " +
+        "LEFT JOIN ChannelMember cm ON cm.channel = c AND cm.user.id = :userId " +
+        "WHERE c.workspace.id = :workspaceId " +
+        "AND (c.visibility = 'PUBLIC' OR cm.id IS NOT NULL) " +
+        "ORDER BY c.createdAt DESC")
 ```
 
 ### 4-2. 역할 기반 권한 제어
@@ -186,16 +191,31 @@ Spring에서 REST API와 WebSocket CORS 설정은 별개입니다.
 
 #### 원인
 초기 구현에서 `LEFT JOIN`으로 `ChannelMember`를 조인했는데,  
-LEFT JOIN은 조건에 맞는 행이 없어도 NULL 행을 반환하기 때문에  
-멤버가 아닌 채널도 결과에 포함되고 NULL 조건 처리가 의도와 다르게 동작했습니다.
+JOIN 조건에서 멤버 여부를 걸러내는 조건이 누락되어  
+멤버가 아닌 채널도 결과에 포함되고 unread가 잘못 표시됐습니다.
 
 #### 해결
-`LEFT JOIN` 방식을 `EXISTS` 서브쿼리로 변경하고, `lastMessageId IS NOT NULL` 조건을 추가해  
+`LEFT JOIN` 방식을 `EXISTS` 서브쿼리로 변경하고, `lastMessageId IS NOT NULL` 조건을 추가해
 메시지가 없는 채널과 멤버가 아닌 채널을 명확하게 제외했습니다.
 
+이후 성능 테스트 과정에서 채널별 unread 여부를 확인하는 조회 구조를 다시 점검했고,
+`LEFT JOIN`의 `ON` 조건과 `WHERE` 조건을 명확히 분리해
+정확성을 유지하면서도 한 번의 조회로 처리되도록 최종 개선했습니다.
+
+#### 결과
+
+k6 부하 테스트 (동시 50명 / 채널 100개)
+
+| API | 평균 (개선 전→후) | p95 (개선 전→후) |
+|---|---|---|
+| 채널 목록 조회 (unread 포함) | 21ms → 14ms | 31ms → 24ms |
+
+응답시간 차이는 크지 않았지만,  
+unread 판단 로직을 단순화하고 채널 목록 조회를 한 번의 쿼리로 처리하도록 정리했습니다.
+
 #### 배운 점
-`LEFT JOIN`과 `EXISTS`는 결과가 달라질 수 있습니다.  
-"없는 경우를 제외해야 하는" 조건은 `EXISTS`로 명확하게 표현하는 것이 안전합니다.
+`LEFT JOIN`과 `EXISTS`는 조건 작성 방식에 따라 결과가 달라질 수 있습니다.  
+멤버가 아닌 채널을 제외해야 하는 경우에는 LEFT JOIN의 ON 조건과 WHERE 조건을 함께 검토해야 합니다.
 
 ---
 
@@ -237,11 +257,63 @@ public class WorkspaceMemberResponse {
 
 ---
 
+### 5-4. @Query 사용 시 페이징 미적용으로 전체 메시지를 조회하는 문제
+
+#### 상황
+k6 부하 테스트(데이터 10,000건, 동시 50명)에서 최신 메시지 조회 API  
+평균 응답시간 8,620ms가 발생했습니다.
+
+#### 원인
+`@Query`로 직접 쿼리를 작성할 때 `Pageable`을 전달하지 않으면 LIMIT이 적용되지 않아  
+채널의 전체 메시지를 조회하고 있었습니다.  
+메서드명의 `Top50`은 Spring Data JPA가 메서드명으로 쿼리를 생성할 때 적용되는 규칙이며,  
+`@Query`로 직접 작성한 쿼리에는 자동으로 적용되지 않습니다.
+
+```java
+// 문제: Pageable 없이 전체 조회
+@Query("select m from Message m join fetch m.sender where m.channel.id = :channelId order by m.id desc")
+List<Message> findTop50WithSenderByChannelId(@Param("channelId") Long channelId);
+```
+
+#### 해결
+`Pageable` 파라미터를 추가해 DB에서 50건만 조회하도록 수정했습니다.
+
+```java
+@Query("select m from Message m join fetch m.sender where m.channel.id = :channelId order by m.id desc")
+List<Message> findTop50WithSenderByChannelId(@Param("channelId") Long channelId, Pageable pageable);
+
+// 호출 시
+return messageRepository.findTop50WithSenderByChannelId(channelId, PageRequest.of(0, 50));
+```
+
+#### 결과
+
+k6 부하 테스트 (동시 50명 / 메시지 데이터 10,000건)
+
+※ 500ms는 채팅방 진입 직후 메시지 목록 조회가 지연 없이 느껴지는지 확인하기 위해 설정한 내부 테스트 기준값입니다.  
+※ 500ms 초과율은 HTTP 실패율이 아니라, k6의 `응답시간 < 500ms` 체크를 만족하지 못한 요청 비율입니다.
+
+**최신 메시지 조회 개선 결과**
+
+| API | 평균 응답시간 | p95 | 500ms 초과율 |
+|---|---|---|---|
+| 최신 메시지 조회 | 8,620ms → 21ms | 14,410ms → 40ms | 약 99% → 0% |
+
+**이전 메시지 조회 검증 결과**
+
+| API | 평균 응답시간 | p95 | 500ms 초과율 | 비고 |
+|---|---|---|---|---|
+| 이전 메시지 조회 | 18ms | 33ms | 0% | 기존 Pageable 적용, <br/>개선 대상 아님 |
+
+#### 배운 점
+`@Query`로 쿼리를 직접 작성하는 경우 메서드명의 `Top50` 같은 키워드가 자동으로 적용되지 않습니다.  
+페이징이나 조회 개수 제한이 필요한 경우 `Pageable`을 명시적으로 추가해야 합니다.
+
+---
+
 ## 6. 개선하고 싶은 것
 
-- 테스트 코드가 없습니다. Service 레이어 단위 테스트와 핵심 API 통합 테스트를 작성할 예정입니다.
 - WebSocket 연결 단절 시 재연결 전략과 heartbeat 처리가 미흡합니다.
-- 메시지 조회와 unread 관련 쿼리 성능을 부하 테스트로 수치화하지 못했습니다.
 
 ---
 
