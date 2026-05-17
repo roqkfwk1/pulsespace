@@ -17,6 +17,7 @@ interface WorkspaceState {
   updateChannelUnread: (channelId: number, unreadCount: number) => void;
   updateChannelHasUnread: (channelId: number, hasUnread: boolean) => void;
   updateChannelLatestMessage: (channelId: number, message: string, timestamp: string) => void;
+  updateWorkspaceHasUnread: (workspaceId: number, hasUnread: boolean) => void;
 
   // Tab actions
   openTab: (channel: Channel) => void;
@@ -60,6 +61,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ch.id === channelId
           ? { ...ch, latestMessage: message, latestMessageAt: timestamp }
           : ch
+      ),
+    })),
+  updateWorkspaceHasUnread: (workspaceId, hasUnread) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === workspaceId ? { ...w, hasUnread } : w
       ),
     })),
 

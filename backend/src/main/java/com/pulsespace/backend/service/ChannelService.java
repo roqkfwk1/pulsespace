@@ -79,7 +79,7 @@ public class ChannelService {
 
         // Object[] 파싱
         return results.stream()
-                .map(row -> ChannelResponse.of((Channel) row[0], (boolean) row[1]))
+                .map(row -> ChannelResponse.of((Channel) row[0], (boolean) row[1], (boolean) row[2]))
                 .toList();
     }
 

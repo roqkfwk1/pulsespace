@@ -30,6 +30,7 @@ export interface Channel {
   description?: string;
   icon?: string;
   hasUnread?: boolean;
+  member?: boolean;
 }
 
 export interface Message {
