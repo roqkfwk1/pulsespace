@@ -17,7 +17,8 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
             "CASE WHEN cm.id IS NOT NULL " +
             "AND c.lastMessageId IS NOT NULL " +
             "AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId) " +
-            "THEN true ELSE false END " +
+            "THEN true ELSE false END, " +
+            "CASE WHEN cm.id IS NOT NULL THEN true ELSE false END " +
             "FROM Channel c " +
             "LEFT JOIN ChannelMember cm ON cm.channel = c AND cm.user.id = :userId " +
             "WHERE c.workspace.id = :workspaceId " +

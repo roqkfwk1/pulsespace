@@ -17,8 +17,9 @@ public class ChannelResponse {
     private String description;
     private LocalDateTime createdAt;
     private boolean hasUnread;
+    private boolean isMember;
 
-    public static ChannelResponse of(Channel channel, boolean hasUnread) {
+    public static ChannelResponse of(Channel channel, boolean hasUnread, boolean isMember) {
         return new ChannelResponse(
                 channel.getId(),
                 channel.getWorkspace().getId(),
@@ -26,7 +27,8 @@ public class ChannelResponse {
                 channel.getVisibility(),
                 channel.getDescription(),
                 channel.getCreatedAt(),
-                hasUnread
+                hasUnread,
+                isMember
         );
     }
 }
