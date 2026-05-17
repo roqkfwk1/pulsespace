@@ -81,7 +81,7 @@ export function useWebSocket() {
     const client = connectStomp((status) => {
       setConnectionStatus(status);
 
-      if (status === 'CONNECTED') {
+      if (status === 'CONNECTED' && client) {
         reconnectCountRef.current = 0;
 
         // (Re)subscribe to the current channel immediately on connect/reconnect
