@@ -54,7 +54,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 - **TopNavBar** — 워크스페이스 아이콘+이름+∨ 전체 클릭 시 드롭다운 전환기 (Headless UI Menu), 검색 플레이스홀더 (`⌘K`), 알림 벨 + 펄스 배지, 다크/라이트 토글, 프로필 메뉴 + 로그아웃. pulsespace 로고(∨ 없을 때) 클릭 시 `/workspaces`로 이동
 - **ChannelTabBar** — framer-motion `Reorder.Group`으로 드래그 재정렬, `layoutId="activeTabIndicator"` 애니메이션 그라디언트 바, 이모지 아이콘, 읽지 않은 배지, X 닫기 버튼(항상 표시), "+" 탭 추가 버튼
-- **ChannelSidebar** — 상단에 워크스페이스 이름 헤더(클릭 시 `goHome()` + 워크스페이스 홈 이동), 채널 검색 필터, "자주 사용" (AI 추천: 읽지 않은 수×10 + 최근성 기준 상위 3개), 전체 채널 latestMessageAt 정렬, 접기/펼치기 그룹 (Headless UI Disclosure), 이모지/해시 아이콘 + 읽지 않은 배지, 채널 삭제 버튼 (OWNER/ADMIN만, 호버 시 표시)
+- **ChannelSidebar** — 상단에 워크스페이스 이름 헤더(클릭 시 `goHome()` + 워크스페이스 홈 이동), 채널 검색 필터, 전체 채널 서버 응답 순서(생성순) 고정, 접기/펼치기 그룹 (Headless UI Disclosure), 이모지/해시 아이콘 + hasUnread 기준 채널명 볼드, 활성 채널은 `activeTabChannelId` 기준으로만 표시, 채널 삭제 버튼 (OWNER/ADMIN만, 호버 시 표시)
 - **WorkspaceHome** — 채널 미선택 시 표시되는 홈 화면. 워크스페이스 이름·설명·멤버 수·채널 수 표시. 멤버 수는 `/api/workspaces/{id}/members` 실시간 조회. 초대 버튼은 OWNER/ADMIN만 표시
 - **ChatWindow** — 채널 헤더, 연결 상태 배너 (AnimatePresence), 위로 무한 스크롤 메시지 목록, 호버 액션 버튼 (답장·이모지 / 본인 메시지는 `...` 드롭다운으로 수정·삭제), 인라인 메시지 편집, 인라인 답장 확장, 답장 표시 바, 플로팅 MessageInput. 채널 초대 버튼은 OWNER만 표시
 - **MemberPanel** — 워크스페이스 멤버 목록 + 역할별 아바타 색상 (소유자=틸, 관리자=보라, 멤버=회색), 역할 라벨. WorkspaceHome일 때 항상 표시, ChatWindow일 때 헤더 버튼으로 토글. OWNER만 ⚙ 버튼 표시 → WorkspaceMemberManageModal 열기. 모달 닫기 시 멤버 목록 자동 재조회
@@ -107,11 +107,11 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - 키보드 힌트: `Enter` 전송, `Shift+Enter` 줄바꿈
 
 #### 읽지 않은 메시지 배지
-- `Channel.hasUnread` — 읽지 않은 메시지 존재 여부 (boolean). ChannelSidebar에서 채널명 굵게 + 흰색 점 표시
-- `Channel.unreadCount` — 읽지 않은 메시지 수. ChannelSidebar + ChannelTabBar에서 빨간 숫자 배지 표시
+- `Channel.hasUnread` — 읽지 않은 메시지 존재 여부 (boolean). ChannelSidebar에서 채널명 굵게(볼드)만 표시 (숫자 배지 없음)
+- `Channel.unreadCount` — 읽지 않은 메시지 수. ChannelTabBar에서만 빨간 숫자 배지 표시 (ChannelSidebar에서는 제거됨)
 - `Workspace.hasUnread` — 워크스페이스 내 읽지 않은 메시지 여부. WorkspaceSelectPage 카드 아이콘에 빨간 점 표시
 - 탭 열기 시 `openTab()`에서 해당 채널의 `hasUnread`를 즉시 `false`로 초기화 (낙관적 업데이트)
-- **버그 수정**: 메시지 없는 채널의 unread 표시 오류 수정, 채널 멤버가 아닌 경우 unread 표시 오류 수정
+- 백그라운드 채널 메시지 수신 시 `updateChannelHasUnread(true)` + `updateWorkspaceHasUnread(true)` 함께 업데이트
 
 #### 워크스페이스/채널 삭제
 - **워크스페이스 삭제**: WorkspaceSelectPage 카드 호버 시 삭제 버튼 (OWNER만). 확인 모달 → `DELETE /api/workspaces/{id}` → 목록에서 제거
@@ -146,6 +146,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `sendMessage()`로 websocket.ts를 통해 메시지 전송
 - 수신 메시지의 `type` 필드로 분기: `CREATED` → `addMessage`, `UPDATED` → `updateMessage`, `DELETED` → `updateMessage({ isDeleted: true })`
 - 연결 배너: RECONNECTING (노란색), DISCONNECTED (빨간색), 동기화 완료 (초록색, 2초 후 자동 숨김)
+- **백그라운드 unread 구독**: 워크스페이스 진입(channels 로드) 시 `member: true`인 모든 채널을 `allChannelUnsubsRef`(Map)로 구독. 활성 채널(`currentChannelId`) 제외. 채널 변경·워크스페이스 전환 시 `syncAllChannelSubscriptions()`로 구독 재동기화. 백그라운드 채널 CREATED 메시지 수신 시 `handleBackgroundMessage()`로 unreadCount+1, hasUnread=true, latestMessage, workspaceHasUnread 업데이트
 
 ### 주요 데이터 흐름
 1. **채널 선택**: 사이드바 클릭 → `openTab(channel)` → REST로 메시지 로드 → STOMP 구독 → `lastReceivedMessageId` 추적
@@ -171,6 +172,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 - `clearTabs()` — 탭 전체 초기화 (워크스페이스 전환 시 호출)
 - `goHome()` — 탭은 유지하고 `currentChannelId`·`activeTabChannelId`만 null로 초기화 (워크스페이스 홈 이동 시 호출)
 - `updateChannelUnread(channelId, count)`, `updateChannelHasUnread(channelId, bool)`, `updateChannelLatestMessage(channelId, msg, timestamp)`
+- `updateWorkspaceHasUnread(workspaceId, bool)` — 워크스페이스 hasUnread 업데이트 (백그라운드 메시지 수신 시)
 - `removeWorkspace(workspaceId)` — 워크스페이스 삭제 (currentWorkspace도 초기화)
 - `removeChannel(channelId)` — 채널 삭제 (탭 닫기 포함)
 
@@ -190,7 +192,7 @@ npm run preview    # 프로덕션 빌드 로컬 서빙
 
 - `User { id, email, name }`
 - `Workspace { id, name, ownerName?, createdAt, description?, memberCount?, channelCount?, colorStart?, colorEnd?, icon?, hasUnread? }`
-- `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon?, hasUnread? }`
+- `Channel { id, workspaceId, name, visibility: 'PUBLIC'|'PRIVATE', unreadCount?, latestMessage?, latestMessageAt?, color?, description?, icon?, hasUnread?, member? }` — `member: boolean`은 백엔드가 내려주는 멤버 여부 필드, 백그라운드 구독 필터링에 사용
 - `Message { id, channelId, senderId, senderName, content, createdAt, type?, editedAt?, deletedAt?, isDeleted?, replyToId?, replyToSenderName?, replyToContent? }`
 - `WorkspaceMember { id, userId, name, email, role: 'OWNER'|'ADMIN'|'MEMBER', joinedAt }` — 리스트 렌더링 key는 `userId` 사용
 - `OpenTab { channelId, channelName, color, icon }`

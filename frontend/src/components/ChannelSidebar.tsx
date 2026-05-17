@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Hash, Lock, Search, ChevronRight, Sparkles, Plus, Loader2, Trash2 } from 'lucide-react';
+import { Hash, Lock, Search, ChevronRight, Plus, Loader2, Trash2 } from 'lucide-react';
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { createChannel, getChannels, deleteChannel } from '../api/channel';
@@ -11,7 +11,7 @@ import Modal from './Modal';
 export default function ChannelSidebar() {
   const { wsId } = useParams<{ wsId: string }>();
   const navigate = useNavigate();
-  const { channels, openTabs, openTab, setChannels, currentWorkspace, removeChannel, goHome } = useWorkspaceStore();
+  const { channels, activeTabChannelId, openTab, setChannels, currentWorkspace, removeChannel, goHome } = useWorkspaceStore();
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [wsRole, setWsRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | null>(null);
@@ -37,29 +37,12 @@ export default function ChannelSidebar() {
     setDeleteTarget(null);
   }
 
-  // "AI recommended" = channels sorted by unread + recency
-  const frequentChannels = useMemo(() => {
-    return [...channels]
-      .sort((a, b) => {
-        const scoreA = (a.unreadCount ?? 0) * 10 + (a.latestMessageAt ? new Date(a.latestMessageAt).getTime() : 0) / 1e12;
-        const scoreB = (b.unreadCount ?? 0) * 10 + (b.latestMessageAt ? new Date(b.latestMessageAt).getTime() : 0) / 1e12;
-        return scoreB - scoreA;
-      })
-      .slice(0, 3);
-  }, [channels]);
-
-  // All channels sorted by latest message
   const allChannels = useMemo(() => {
-    const sorted = [...channels].sort((a, b) => {
-      const ta = a.latestMessageAt ?? '';
-      const tb = b.latestMessageAt ?? '';
-      return tb.localeCompare(ta);
-    });
-    if (!search.trim()) return sorted;
-    return sorted.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+    if (!search.trim()) return channels;
+    return channels.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
   }, [channels, search]);
 
-  const isTabOpen = (id: number) => openTabs.some((t) => t.channelId === id);
+  const isActiveChannel = (id: number) => activeTabChannelId === id;
 
   function handleSelect(channel: Channel) {
     openTab(channel);
@@ -115,28 +98,6 @@ export default function ChannelSidebar() {
         </div>
       </div>
 
-      {/* Frequent channels (AI recommended) */}
-      {!search && (
-        <div className="px-3 mb-2">
-          <div className="flex items-center justify-between mb-1.5 px-1">
-            <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
-              자주 사용
-            </h3>
-            <Sparkles className="w-3 h-3 text-accent" />
-          </div>
-          {frequentChannels.map((ch) => (
-            <ChannelItem
-              key={ch.id}
-              channel={ch}
-              isOpen={isTabOpen(ch.id)}
-              onSelect={() => handleSelect(ch)}
-              canDelete={canDeleteChannel}
-              onDeleteRequest={() => setDeleteTarget(ch)}
-            />
-          ))}
-        </div>
-      )}
-
       {/* All channels */}
       <div className="flex-1 overflow-y-auto">
         <Disclosure defaultOpen>
@@ -164,7 +125,7 @@ export default function ChannelSidebar() {
                   <ChannelItem
                     key={ch.id}
                     channel={ch}
-                    isOpen={isTabOpen(ch.id)}
+                    isOpen={isActiveChannel(ch.id)}
                     onSelect={() => handleSelect(ch)}
                     canDelete={canDeleteChannel}
                     onDeleteRequest={() => setDeleteTarget(ch)}
@@ -445,22 +406,12 @@ function ChannelItem({
           : <Hash className="w-3.5 h-3.5 shrink-0 opacity-60" />
         }
 
-        {/* Unread dot */}
-        {channel.hasUnread && !isOpen && (
-          <span className="text-white text-[8px] shrink-0 leading-none">●</span>
-        )}
-
         {/* Name */}
         <span className={`flex-1 text-sm truncate ${channel.hasUnread && !isOpen ? 'text-white font-semibold' : ''}`}>
           {channel.name}
         </span>
 
-        {/* Unread badge */}
-        {!!channel.unreadCount && channel.unreadCount > 0 && !isOpen && (
-          <span className="px-1.5 py-0.5 bg-danger text-white text-[10px] font-bold rounded-full shrink-0 min-w-[18px] text-center">
-            {channel.unreadCount}
-          </span>
-        )}
+
       </button>
 
       {canDelete && (
