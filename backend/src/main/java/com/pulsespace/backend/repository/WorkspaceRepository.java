@@ -18,12 +18,8 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
             "JOIN ChannelMember cm ON cm.channel.id = c.id AND cm.user.id = :userId " +
             "WHERE c.workspace.id = w.id " +
             "AND c.lastMessageId IS NOT NULL " +
-            "AND (cm.lastReadMessageId IS NULL " +
-            "OR cm.lastReadMessageId < c.lastMessageId) " +
-            "AND (c.visibility = 'PUBLIC' OR " +
-            "(c.visibility = 'PRIVATE' AND EXISTS (" +
-            "SELECT cm2 FROM ChannelMember cm2 WHERE cm2.channel = c AND cm2.user.id = :userId)))) " +
-            "THEN true ELSE false END " +
+            "AND (cm.lastReadMessageId IS NULL OR cm.lastReadMessageId < c.lastMessageId)" +
+            ") THEN true ELSE false END " +
             "FROM WorkspaceMember wm " +
             "JOIN wm.workspace w " +
             "WHERE wm.user.id = :userId")
