@@ -11,7 +11,8 @@ import com.pulsespace.backend.domain.user.User;
         name = "workspace_members",
         uniqueConstraints = @UniqueConstraint(
                 columnNames = {"workspace_id", "user_id"}
-        )
+        ),
+        indexes = @Index(name = "idx_workspace_member_user_id", columnList = "user_id")
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
