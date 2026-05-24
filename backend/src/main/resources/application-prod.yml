@@ -49,3 +49,12 @@ logging:
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: ERROR
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
