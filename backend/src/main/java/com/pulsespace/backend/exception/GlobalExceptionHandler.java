@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
                 ? fieldError.getDefaultMessage()
                 : "잘못된 요청입니다.";
 
-        log.warn("[Validation 실패] {}", message);
+        log.warn("validation_failed message={}", message);
 
         ErrorResponse error = new ErrorResponse(400, message);
         return ResponseEntity.status(400).body(error);
@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
         ErrorCode code = e.getErrorCode();
 
-        log.warn("[BusinessException] {} - {}", code.name(), code.getMessage());
+        log.warn("business_exception code={} message={}", code.name(), code.getMessage());
 
         ErrorResponse error = new ErrorResponse(code.getStatus(), code.getMessage());
         return ResponseEntity.status(code.getStatus()).body(error);
@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e) {
 
-        log.error("[서버 오류] {}", e.getMessage(), e);
+        log.error("server_error message={}", e.getMessage(), e);
 
         ErrorResponse error = new ErrorResponse(500, "서버 내부 오류가 발생했습니다.");
         return ResponseEntity.status(500).body(error);
