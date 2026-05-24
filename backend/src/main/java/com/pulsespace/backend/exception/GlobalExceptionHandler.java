@@ -1,5 +1,7 @@
 package com.pulsespace.backend.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -8,6 +10,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Validation 실패 (400 Bad Request)
@@ -22,6 +26,8 @@ public class GlobalExceptionHandler {
                 ? fieldError.getDefaultMessage()
                 : "잘못된 요청입니다.";
 
+        log.warn("[Validation 실패] {}", message);
+
         ErrorResponse error = new ErrorResponse(400, message);
         return ResponseEntity.status(400).body(error);
     }
@@ -33,6 +39,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
         ErrorCode code = e.getErrorCode();
+
+        log.warn("[BusinessException] {} - {}", code.name(), code.getMessage());
+
         ErrorResponse error = new ErrorResponse(code.getStatus(), code.getMessage());
         return ResponseEntity.status(code.getStatus()).body(error);
     }
@@ -42,6 +51,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e) {
+
+        log.error("[서버 오류] {}", e.getMessage(), e);
 
         ErrorResponse error = new ErrorResponse(500, "서버 내부 오류가 발생했습니다.");
         return ResponseEntity.status(500).body(error);
