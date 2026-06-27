@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy to Lightsail
 
 on:
   push:
@@ -40,35 +40,35 @@ jobs:
           npm ci
           npm run build
 
-      # EC2에 백엔드 jar 전송 (plain jar 제외)
+      # Lightsail에 백엔드 jar 전송 (plain jar 제외)
       - name: Copy backend jar
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USERNAME }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           source: "backend/build/libs/*[^plain].jar"
           target: "/home/ubuntu/pulsespace"
           strip_components: 3
 
-      # EC2에 프론트엔드 빌드 결과물 전송
+      # Lightsail에 프론트엔드 빌드 결과물 전송
       - name: Copy frontend dist
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USERNAME }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           source: "frontend/dist/*"
           target: "/var/www/pulsespace"
           strip_components: 2
 
-      # EC2에서 애플리케이션 재시작
+      # Lightsail에서 애플리케이션 재시작
       - name: Start application
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USERNAME }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           script: |
             sudo systemctl stop pulsespace || true
             sudo systemctl start pulsespace
